@@ -344,3 +344,77 @@ The mentor issued a new plan, `v2.md`, superseding `IMPLEMENTATION.md`. It confi
 **Awaiting human sign-off (including an in-browser click-through) before starting Phase 8 (deal health, anomalies and reporting).**
 
 ---
+
+## Phase 8 — Deal health, anomalies and reporting
+
+*Built by a different contributor in this repo's history; not documented in this file at the time. Recorded here retroactively from code review, not from having built or independently verified it end to end — see the caveat at the end of this section.*
+
+**Built (per `backend/app/engine/anomaly.py`, `backend/app/api/dashboard.py`, `frontend/src/features/dashboard/DealHealthPage.tsx` and `ReportsPage.tsx`):**
+- `engine/anomaly.py` — pure functions, no DB access, consistent with the rest of `/engine`: `find_stalled_deals` (non-terminal quotations idle past `stalled_deal_day_threshold`), `find_discount_anomalies` (z-score of a rep's order-level discount % against their own historical mean/stddev, falling back to a fixed-delta-vs-org-average rule when a rep has fewer than 5 priced quotes), `find_delivery_slippage` (fulfillments with an open backorder past a derived promise date).
+- `GET /api/dashboard/health` (the three alert lists), `GET /api/dashboard/metrics` (quotes-this-month, avg approval time from real `ApprovalRequest` timestamps, win rate, margin trend by month, discount-by-rep with anomalies flagged), `GET /api/reports` + `GET /api/reports/export.csv` (filterable by period/owner/status/product).
+- `POST /quotations/{id}/nudge` and `.../escalate` — logged actions on the audit trail, originally with **no role restriction at all** (any authenticated user, including the quotation's own rep, could nudge/escalate any quotation) — fixed in the post-Phase-9 section below after a user-reported gap.
+- `GET /quotations/{id}/pdf` — a real PDF export via `reportlab` (added to `requirements.txt`).
+- Deal Health screen: three KPI cards, a Deal/Issue/Flagged/Action table, Nudge Rep/Escalate buttons reading and writing the audit trail; Reports screen with filters and CSV export.
+
+**Not independently verified by this session** beyond the role-gating fix and a live click-through of Deal Health during that fix — the anomaly math, report filters, and PDF rendering were not re-derived or hand-checked here the way earlier phases in this file were. Worth a real Gate 8 pass if that hasn't happened yet.
+
+---
+
+## Phase 9 — Harden, seed, rehearse
+
+*Same caveat as Phase 8: built by a different contributor, documented here from code review.*
+
+**Built (per `README.md`, `ARCHITECTURE.md`, `backend/app/seed.py`):**
+- `python -m app.seed --reset` — drops and recreates the schema, then reseeds the full demo dataset (customers, products, warehouses with split stock, subscription plans, pairings, approval rules, ~15–20 historical quotations) in about 2 seconds, per `README.md`'s run instructions.
+- `README.md` — run instructions, demo credentials for all roles, reset command.
+- `ARCHITECTURE.md` — one-page architecture doc: the `/engine` modules as the shared core every surface (API, portal, dashboard) reads through, plus a "config is data, not constants" table.
+- `frontend/src/components/ErrorBoundary.tsx` — a React error boundary, presumably wired in `main.tsx` per the diff, so a component crash doesn't blank the whole app.
+
+**Not independently verified by this session** — the demo script rehearsal, the "runs clean twice from a reset DB" check, and responsive/keyboard/reduced-motion passes described in `v2.md`'s Phase 9 checklist were not re-run here.
+
+---
+
+## Post-Phase-9 — User/evaluator-requested fixes and additions
+
+Everything below was requested directly after Phase 9, outside the original phase plan, in response to specific gaps found by manual testing. Each item was built, curl/API-verified, and (where noted) covered by an automated test — the same standard as the phases above.
+
+### Tailwind opacity-modifier fix
+The UI initially rendered with no visible color anywhere (risk meter border, badges, modal backdrop all flat). Root cause: `tailwind.config.js` defined every theme color as a raw `var(--color-x)` string, which Tailwind can't decompose for an opacity modifier (`border-danger/40` etc. silently generated zero CSS across `RiskMeter`, `Badge`, `Callout`, `Toast`, `Modal`, `AppShell`). Fixed by wrapping each color in a `withOpacity()` helper using CSS relative-color syntax (`rgb(from var(--x) r g b / <alpha>)`); verified the modifier classes now compile and confirmed live in the running app.
+
+### Repository history note
+Mid-session, `origin/main` was force-pushed by a teammate with an independent implementation of Phase 5 (fulfillment) and Phase 6 (billing) that had already diverged from this session's own Phase 5 work. Per the human's direction, reset local `main` to the teammate's version rather than manually merging two divergent fulfillment engines — their version already had Phase 6 built on top of it. The session's own Phase 5 commit is preserved in git history/reflog but is no longer on `main`.
+
+### Nudge/Escalate role gate (bug fix)
+`POST /quotations/{id}/nudge` and `.../escalate` (Phase 8) had no role restriction — any authenticated user, including a sales rep nudging themselves, could call either. Fixed: both now require `SALES_MANAGER`, `FINANCE`, or `ADMIN` (`require_role` on the backend); the frontend `DealHealthPage` hides the buttons for roles that would just get a 403, showing "Manager/Finance only" instead. Verified: rep → 403, manager → 200.
+
+### Upsell/cross-sell pairing coverage
+Only 6 of 12 seeded products had a `ProductPairing` row as the origin product, so adding anything else (e.g. SaaS License Premium) correctly — but confusingly — showed "no suggestions." Added 7 more pairing rows to `seed.py` (Docking Station↔4K Monitor, Docking Station↔Wireless Mouse, SaaS License Premium→Priority Support Package, Support Plan Basic→SaaS License Standard, Extended Onboarding↔Priority Support Package) so every seeded product now has at least one pairing. Re-ran the idempotent seed; verified via curl that the previously-broken case now surfaces a suggestion with a real margin delta.
+
+### Shipment Manager role
+Added `Role.SHIPMENT_MANAGER` — can edit warehouse stock levels (`PUT /warehouses/{id}/stock/{product_id}`, alongside `ADMIN`) and use the manual fulfillment override (`POST /fulfillment/{id}/override`, alongside `ADMIN`/`SALES_MANAGER`) — i.e. exactly "edit stock, decide what ships from which warehouse," not the whole fulfillment lifecycle (accept/consolidate/ship stay open to any authenticated user, unchanged). Added the Postgres enum value live (`ALTER TYPE role ADD VALUE`), a seeded demo account (`shipping@dealflow360.com`), and matching frontend gating on the Fulfillment/Stock inline edit and the Manual Override button (hidden rather than left to 403, same pattern as the nudge/escalate fix). Verified: shipment manager can edit stock and call override; a rep is blocked from both (403).
+
+### Customer account ownership + non-blocking conflict warning
+Two reps working the same customer had no system-level visibility into each other. Added `Customer.owner_user_id` (nullable, assigned round-robin to seeded customers), reassignable only by `ADMIN`/`SALES_MANAGER` — and a manager is restricted to touching *only* `owner_user_id` on that endpoint, not other customer fields (403 if they try; caught and fixed a bug here where the audit-log payload passed a raw `UUID` object into a JSONB column and crashed with a 500 the first time this was tested — fixed by using `model_dump(mode="json")` for the log payload specifically). New `GET /api/users?role=` (admin/manager-scoped) feeds the reassignment dropdown. Frontend: the Quotation Builder shows "Account owner: X" with a reassign control for managers, plus two non-blocking warning `Callout`s — "this customer's owner is someone else" and "another rep already has an open quotation with this customer" (naming them, the quote number, and the amount). Deliberately a warning, not a lock: any rep can still build and submit the quote, matching the human's explicit choice of "surface the conflict, don't block it."
+
+### Portal counter-offer visibility (bug fix)
+When a rep/manager clicked "Counter" on a customer's discount request, the number they typed only ever lived in an internal free-text field — it never reached the customer's portal page at all, so a scenario like "customer asks 40%, manager counters 35%" left the customer's portal permanently showing their own 40% with no visibility into the counter-offer. Fixed: added a real `counter_discount_pct` column on `NegotiationRequest` (distinct from the customer's own `proposed_discount_pct`), a numeric "Counter %" field in the internal negotiation inbox (replacing free-text-only), and `rep_counter_discount_pct`/`rep_counter_message` on `PortalQuotationOut` — the portal now shows "Your sales rep countered at 35% off — [message]" with the Counter Discount % field pre-filled, and explains accurately that clicking Submit Request (not Confirm) is what sends it back for the rep to accept. Verified end to end via curl: customer 40% → manager counters 35% → customer reopens the same portal link → sees `rep_counter_discount_pct: "35.00"`.
+
+### In-app notification system
+Built per an explicit spec: no email/SMTP, reuse existing audit/SSE infrastructure, centralize rules rather than scatter notification logic across routers.
+- `Notification(user_id, event_type, message, quotation_id, read_at, created_at)`.
+- `core/notifications.py` — one dispatcher, `dispatch_event(db, event_type, context, quotation_id)`, driven by a `RULES` table mapping 9 event types to a `(resolve_recipients, render_message)` pair. Routers call this with the same facts they already log to `audit_events`; no router contains recipient-resolution logic itself.
+- Wired into 5 real sites: `submit_quotation` (auto-approved → owner; needs approval → that role's users), `act_on_approval` (approve mid-chain → next role, final approve → owner, reject → owner, return-for-revision → owner), `recompute_quotation` (re-entered approval → owner), portal `negotiate` (→ owner) and portal `confirm` re-entry (→ next role).
+- Delivery reuses the existing SSE broadcaster exactly — a `notification_created` event carrying `user_id`, so a connected client can tell if a notification is its own; no second transport added.
+- `GET /api/notifications` (+`unread_only`), `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all` — cross-user access returns 404, not 403, so a stray ID doesn't confirm another user's notification exists.
+- Frontend: a bell icon in `AppShell` with an unread badge, dropdown list, click-to-mark-read, mark-all-read, and click-through to the linked quotation; `useEventStream` invalidates the notifications query live.
+- Zero changes to pricing/risk/routing engines or any existing audit/SSE payload shape — purely additive.
+
+**Verified:**
+- Full multi-step chain live end to end via curl: submit (high discount) → manager notified "needs your approval" → manager approves → finance notified "routed to you for approval" → finance approves → rep notified "was approved." Also verified reject and return-for-revision independently notify the owner.
+- Cross-user isolation: `GET /api/notifications` scoped to the caller; marking another user's notification read → 404.
+- `python -m pytest` — **32 tests, all passing**: 17 pure unit tests of the dispatcher (in-memory SQLite, two tables, no Postgres — recipient resolution for both rule types, notification creation, SSE payload shape, dedup, unknown-event/missing-context no-ops), 11 API tests against a dedicated `dealflow_test` Postgres database (auto-created, every test wrapped in a rolled-back `SAVEPOINT` so nothing leaks into the real dev DB — verified separately: 0 test rows found in the dev database after a full run), 4 end-to-end tests hitting the real `/submit`/`/act` endpoints through the unmodified pricing/risk/routing engines to prove the actual router wiring, not just the dispatcher in isolation.
+- Added `backend/pytest.ini` (`pythonpath = .`) and `pytest`/`httpx` to `requirements.txt` — this is the first automated test suite in the repository; run via `docker compose exec backend python -m pytest`.
+
+**Known environment issue (not caused by this work, hit repeatedly while testing it):** the backend's `uvicorn --reload` occasionally hangs on "Waiting for connections to close" after a file change, apparently blocked by a long-lived SSE `/api/events/stream` connection. `docker compose restart backend` clears it every time. Worth a real fix (e.g. a shutdown handler that force-closes SSE connections) if it becomes disruptive.
+
+---
