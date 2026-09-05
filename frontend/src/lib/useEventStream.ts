@@ -34,6 +34,7 @@ export function useEventStream(): void {
         qc.invalidateQueries({ queryKey: ["quotation", quotationId] });
         qc.invalidateQueries({ queryKey: ["approvals", quotationId] });
         qc.invalidateQueries({ queryKey: ["quotation-risk", quotationId] });
+        qc.invalidateQueries({ queryKey: ["negotiations", quotationId] });
       }
 
       if (data.type === "approval_acted" && typeof data.action === "string") {
@@ -42,6 +43,16 @@ export function useEventStream(): void {
         toast.push("A quotation was submitted for approval");
       } else if (data.type === "quotation_recomputed") {
         toast.push("A quotation was recomputed");
+      } else if (data.type === "negotiation_created") {
+        toast.push("A customer submitted a negotiation request");
+      } else if (data.type === "negotiation_responded") {
+        toast.push("A negotiation request was responded to");
+      } else if (data.type === "quotation_reentered_approval") {
+        toast.push("A confirmed quotation re-entered approval");
+      } else if (data.type === "quotation_confirmed") {
+        toast.push("A quotation was confirmed");
+      } else if (data.type === "quotation_sent") {
+        toast.push("A quotation was sent to the customer");
       }
     };
 

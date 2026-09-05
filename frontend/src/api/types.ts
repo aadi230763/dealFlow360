@@ -470,3 +470,68 @@ export interface QuotationListItem {
   created_at: string;
   last_activity_at: string;
 }
+
+// Phase 7 -- customer portal / negotiation. PortalLineOut deliberately carries no cost,
+// margin, ceiling, overage, weight or risk field -- the portal schema is a separate tree
+// on the backend, not a filtered internal one.
+export interface PortalLineOut {
+  id: string;
+  product_name: string;
+  qty: number;
+  unit_price: string;
+  discount_pct: string;
+  net: string;
+  tax_amount: string;
+  line_total: string;
+  comment: string | null;
+}
+
+export interface PortalQuotationOut {
+  number: string;
+  customer_name: string;
+  status: string;
+  currency: string;
+  lines: PortalLineOut[];
+  subtotal: string;
+  discount_total: string;
+  tax_total: string;
+  grand_total: string;
+  latest_counter_discount_pct: string | null;
+  latest_requested_delivery_date: string | null;
+  expires_at: string;
+}
+
+export interface SendQuotationOut {
+  url: string;
+  expires_at: string;
+}
+
+export interface PortalNegotiateRequest {
+  line_comments: Record<string, string>;
+  proposed_discount_pct?: number | null;
+  requested_delivery_date?: string | null;
+}
+
+export interface PortalConfirmOut {
+  status: string;
+  message: string;
+}
+
+export type NegotiationType = "COMMENT" | "CHANGE_REQUEST" | "COUNTER_DISCOUNT";
+export type NegotiationStatus = "PENDING" | "ACCEPTED" | "COUNTERED" | "DECLINED" | "ACKNOWLEDGED";
+
+export interface NegotiationRequestOut {
+  id: string;
+  quotation_id: string;
+  line_id: string | null;
+  line_product_name: string | null;
+  type: NegotiationType;
+  message: string | null;
+  proposed_discount_pct: string | null;
+  requested_delivery_date: string | null;
+  status: NegotiationStatus;
+  created_at: string;
+  responded_at: string | null;
+  responder_name: string | null;
+  response_message: string | null;
+}

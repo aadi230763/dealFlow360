@@ -294,3 +294,53 @@ The mentor issued a new plan, `v2.md`, superseding `IMPLEMENTATION.md`. It confi
 - Order/Invoice numbering (`ORD-0001`, `INV-0001`) mirrors the existing `Quotation` numbering pattern (row count + 1) — fine for a single-process demo, not safe under concurrent writes (same caveat already true of quotation numbering).
 
 ---
+
+## Phase 7 — Customer portal and negotiation
+
+**Built:**
+- `PortalToken(id, quotation_id, customer_id, token_hash, expires_at, used_at)` — a random opaque secret (`secrets.token_urlsafe(32)`), hashed at rest, never a JWT. Structurally can't be accepted by the internal `get_current_user` dependency (it isn't valid JWT syntax at all), so "a portal token cannot call any internal route" holds by construction, not by an extra check.
+- `NegotiationRequest(id, quotation_id, line_id, type, message, proposed_discount_pct, requested_delivery_date, status, ...)` — `line_id` is `ON DELETE SET NULL`, not a hard-blocking FK, because `_apply_lines` deletes and recreates `QuotationLine` rows (new ids) on every reprice; a customer comment has to be able to outlive the line it was made on.
+- `core/portal_auth.py` — `get_portal_context` dependency: hashes the bearer token, looks up the `PortalToken` row, and returns **404 (never 401/403)** for anything wrong — missing, garbage, unknown, or expired. One status code for every failure mode, so nothing about which case failed leaks to an attacker probing quotation ids.
+- Endpoints exactly per spec: `POST /quotations/{id}/send` (APPROVED/SENT/UNDER_NEGOTIATION → generates a token, sets `SENT`), `GET /api/portal/quotation`, `POST /api/portal/negotiate`, `POST /api/portal/confirm`, `POST /api/negotiations/{id}/respond`. Added `GET /quotations/{id}/negotiations` (internal) to actually feed the rep's inbox — not in the endpoint list but required to render it.
+- **A separate Pydantic response schema** (`schemas/portal.py`) — `PortalLineOut`/`PortalQuotationOut` carry product name, qty, price, discount, net, tax, line total. No `unit_cost`, `cost_total`, `margin_amount`, `margin_pct`, `ceiling_pct`, `overage_pct`, `weight`, or any risk field exists anywhere in the tree. Not a filtered internal schema — a hand-written one, so there's nothing to accidentally leave in.
+- **The automatic re-entry rule** (`POST /api/portal/confirm`): re-runs `_risk_for_persisted` (the exact same repricing/risk path `submit`/`recompute` use) against whatever is currently on `quotation.lines` — which by confirm time reflects any counter-discount the rep already accepted. If a chain is required, creates the `ApprovalRequest` rows and returns `PENDING_APPROVAL` with a "sent for internal review" message; the customer never clicks anything to make that happen. If not, walks through `APPROVED` → `ensure_fulfillment_planned` → `create_order_and_initial_invoices` (the exact same order/invoice logic `POST /quotations/{id}/confirm` uses — extracted into a shared function so there's one code path, not two that can drift) → `CONFIRMED`, and marks the token used (one confirm per link).
+- `POST /api/negotiations/{id}/respond` — accept/counter/decline. Accepting a `COUNTER_DISCOUNT` re-prices **every** line at the proposed discount (same "apply to all lines" semantics the builder's own bulk-discount control already uses) and immediately updates `quotation.blended_score`/`peak_overage`/`erosion_amount` on the persisted row — so the risk band visibly moves the moment the rep accepts, without waiting for the customer to confirm. Counter/decline require a response message; accept doesn't re-run the approval chain (that's confirm's job, per the spec's staged flow).
+- Frontend, screen 11 (`/portal/:token`, `PortalLayout` + `PortalNegotiationPage`): a genuinely separate route tree — no `AppShell`, no `ProtectedRoute`, no internal nav, its own header with **My Quotation · Messages · Profile**, its own API client (`portalClient.ts`) that only ever sends the one token it's given and never touches the internal JWT in `localStorage`. Status chip, Line/Customer Comment table (comments pre-fill from the last submitted value), Counter Discount %/Requested Delivery Date fields, Submit Request/Confirm Quotation footer, and the exact note strip text from the mockup.
+- Internal side: "Send to Customer" button on Quotation Detail (APPROVED/SENT/UNDER_NEGOTIATION) opens a modal with a copyable portal link; `NegotiationInboxPanel` (threaded, Accept/Counter/Decline, counter/decline require a message) rendered below the risk meter whenever a quotation has any negotiation history. `useEventStream` now invalidates the negotiations query and toasts on `negotiation_created`/`negotiation_responded`/`quotation_reentered_approval`/`quotation_confirmed`/`quotation_sent`, satisfying "a customer counter appears in the rep's inbox live, without refresh."
+
+**Verified (via curl against the running API, full round trip):**
+- `GET /api/portal/quotation` payload inspected directly — confirmed zero cost/margin/risk fields present.
+- Portal token rejected by an internal route (`GET /api/quotations` with a portal bearer) → 401 (fails JWT parsing, never reaches a role check).
+- Garbage/unknown token → 404. Manually inserted an expired `PortalToken` row and confirmed it also 404s with "Portal link not found or has expired," not a stack trace or a 401.
+- Portal `negotiate` (line comment + 15% counter) → appeared instantly in `GET /quotations/{id}/negotiations` (the rep inbox source). Rep `accept` → line `discount_pct` became 15.00, order totals recalculated correctly (subtotal 22000 → discount 3300 → grand total 22066), and since 15% was under that category's 18% ceiling, `blended`/`peak` correctly stayed 0 — confirmed the "no chain" path is real math, not a stub.
+- **The key check, done for real**: fresh quotation, portal counter at 40% (well over ceiling), rep accepts (blended/peak jumped to 22.00, chain became Manager+Finance), customer clicks Confirm → `POST /api/portal/confirm` returned `PENDING_APPROVAL` with "Final terms exceeded a discount threshold, so this quotation was sent for internal review," and `GET /quotations/{id}/approvals` showed both `ApprovalRequest` rows — created with nobody touching an internal "submit" button.
+- Separately verified the within-threshold path on another quotation: confirm returned `CONFIRMED` directly, and `GET /api/fulfillment` showed a fresh `Fulfillment` row for that quotation immediately after.
+- Re-calling `/api/portal/confirm` with an already-used token → 400 "This quotation has already been confirmed," not a second Order.
+- `tsc -b --noEmit` clean; all portal and internal routes serve 200.
+
+**Bugs found and fixed during this phase (both pre-existing, just newly triggered):**
+- `_apply_lines` (in `api/quotations.py`, unchanged) deletes and recreates `QuotationLine` rows on every reprice. Accepting a counter-discount calls it, which broke on any quotation that already had a `Fulfillment` planned (from the original APPROVED moment) — deleting the old line hit a hard FK from `fulfillment_allocations`. Fixed by deleting any still-`PLANNED` (never-accepted, no stock reserved) `Fulfillment` before repricing; `ensure_fulfillment_planned` regenerates a correct one at confirm time against the final lines. The same latent bug exists for the internal `recompute` endpoint on an already-planned quotation — out of scope to fix here since it predates this phase, but worth a follow-up.
+- Same root cause bit `NegotiationRequest.line_id` the first time it was a hard FK — fixed by making it `ON DELETE SET NULL` instead (see Built, above) rather than working around it a second time.
+
+**Judgment calls:**
+- "Messages" and "Profile" (the other two portal nav items the mockup names alongside "My Quotation") aren't specified anywhere beyond their labels. Built as intentionally minimal placeholders — Profile shows the read-only account/currency the portal already has; Messages explains that requests go through My Quotation for now — rather than inventing a threaded-messaging feature the spec never describes.
+- "Counter" on the internal negotiation inbox records the rep's free-text counter-offer and marks the thread `COUNTERED`; it does not re-price the quotation the way "accept" does (a rep countering isn't agreeing to anything yet — only the customer's eventual accept-and-confirm, or the rep's own "accept" on a later round, changes the lines).
+
+**Skipped:** nothing from the phase's own checklist.
+
+**Known breakage / follow-ups:**
+- None found during verification. Not yet click-tested in-browser by a human (no headless browser in this environment) — `tsc` is clean and every endpoint is curl-verified end to end including the two branch outcomes of the automatic re-entry rule, but someone should open a portal link in an actual private window and click through Submit Request → internal Accept → Confirm Quotation before signing off Gate 7.
+
+## Verification Gate 7
+- [x] The portal link opens with no login and shows the right quotation (structural: a separate bearer token, not a session/cookie tied to the internal app).
+- [x] Inspected the raw JSON — no cost, margin or risk fields anywhere.
+- [x] Changing/guessing the token returns 404.
+- [x] A portal token cannot call any internal `/api/quotations/*` route (401, fails JWT parsing).
+- [x] A customer counter appears in the rep's inbox live, without refresh (SSE wired).
+- [x] **Key check**: customer counters above threshold, rep accepts, customer confirms → automatic re-entry into approval with the correct chain, verified via curl end to end.
+- [x] A within-threshold confirmation goes straight to fulfillment planning.
+- [x] An expired token is refused with a clear message.
+
+**Awaiting human sign-off (including an in-browser click-through) before starting Phase 8 (deal health, anomalies and reporting).**
+
+---

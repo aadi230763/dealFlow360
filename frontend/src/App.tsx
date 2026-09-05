@@ -18,12 +18,23 @@ import { SubscriptionsListPage } from "@/features/billing/SubscriptionsListPage"
 import { BillingDetailPage } from "@/features/billing/BillingDetailPage";
 import { InvoicesListPage } from "@/features/billing/InvoicesListPage";
 import { InvoiceDetailPage } from "@/features/billing/InvoiceDetailPage";
+import { PortalLayout } from "@/features/portal/PortalLayout";
+import { PortalNegotiationPage } from "@/features/portal/PortalNegotiationPage";
+import { PortalMessagesPage } from "@/features/portal/PortalMessagesPage";
+import { PortalProfilePage } from "@/features/portal/PortalProfilePage";
 
 export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+
+      <Route path="/portal/:token" element={<PortalLayout />}>
+        <Route index element={<Navigate to="quotation" replace />} />
+        <Route path="quotation" element={<PortalNegotiationPage />} />
+        <Route path="messages" element={<PortalMessagesPage />} />
+        <Route path="profile" element={<PortalProfilePage />} />
+      </Route>
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>

@@ -109,6 +109,7 @@ SYSTEM_SETTINGS = {
     "currency_symbol": "₹",
     "fulfillment_base_shipment_cost": 10,
     "invoice_due_days": 15,
+    "portal_token_expires_days": 14,
 }
 
 NON_TERMINAL_STATUSES = [

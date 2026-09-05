@@ -61,16 +61,11 @@ def _generate_number(db: Session, model, prefix: str) -> str:
     return f"{prefix}-{count + 1:04d}"
 
 
-@router.post("/api/quotations/{quotation_id}/confirm", response_model=QuotationOut)
-def confirm_quotation(
-    quotation_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)
-) -> Quotation:
-    quotation = db.get(Quotation, quotation_id)
-    if quotation is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")
-    if quotation.status != QuotationStatus.APPROVED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only an approved quotation can be confirmed")
-
+def create_order_and_initial_invoices(db: Session, quotation: Quotation, user: User | None) -> Order:
+    """Shared by the internal 'Confirm Order' button and the customer portal's auto-confirm
+    path (Phase 7) -- both need the exact same Order/recurring-invoice creation, not two
+    copies that can drift. Does not touch quotation.status; the caller decides that (the
+    portal path sets APPROVED first so `ensure_fulfillment_planned` fires consistently)."""
     order = Order(
         id=uuid.uuid4(),
         quotation_id=quotation.id,
@@ -127,9 +122,6 @@ def confirm_quotation(
         db.flush()
         schedules_created.append(schedule.id)
 
-    quotation.status = QuotationStatus.CONFIRMED
-    quotation.last_activity_at = datetime.now(timezone.utc)
-    db.flush()
     log_event(
         db,
         entity_type="order",
@@ -138,6 +130,24 @@ def confirm_quotation(
         actor=user,
         payload={"quotation_id": str(quotation.id), "schedules_created": [str(s) for s in schedules_created]},
     )
+    return order
+
+
+@router.post("/api/quotations/{quotation_id}/confirm", response_model=QuotationOut)
+def confirm_quotation(
+    quotation_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> Quotation:
+    quotation = db.get(Quotation, quotation_id)
+    if quotation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")
+    if quotation.status != QuotationStatus.APPROVED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only an approved quotation can be confirmed")
+
+    order = create_order_and_initial_invoices(db, quotation, user)
+
+    quotation.status = QuotationStatus.CONFIRMED
+    quotation.last_activity_at = datetime.now(timezone.utc)
+    db.flush()
     db.commit()
     db.refresh(quotation)
     publish({"type": "quotation_confirmed", "quotation_id": str(quotation.id), "order_id": str(order.id)})
