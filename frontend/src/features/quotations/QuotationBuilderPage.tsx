@@ -5,6 +5,7 @@ import { api, ApiError } from "@/api/client";
 import type {
   Category,
   Customer,
+  CustomerTier,
   Product,
   Quotation,
   QuotationLineIn,
@@ -17,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
 import { Input } from "@/components/Input";
+import { Modal } from "@/components/Modal";
 import { Money } from "@/components/Money";
 import { Card } from "@/components/Card";
 import { Callout } from "@/components/Callout";
@@ -72,6 +74,10 @@ export function QuotationBuilderPage() {
     queryKey: ["quotations"],
     queryFn: () => api.get<QuotationListItem[]>("/quotations"),
   });
+  const { data: tiers } = useQuery({
+    queryKey: ["tiers"],
+    queryFn: () => api.get<CustomerTier[]>("/tiers"),
+  });
   const { user } = useAuth();
   const canReassignOwner = user?.role === "ADMIN" || user?.role === "SALES_MANAGER";
   const { data: reps } = useQuery({
@@ -87,6 +93,8 @@ export function QuotationBuilderPage() {
   const [bulkDiscount, setBulkDiscount] = useState("");
   const [saving, setSaving] = useState<"draft" | "submit" | null>(null);
   const [loadedForId, setLoadedForId] = useState<string | undefined>(undefined);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({ name: "", email: "", tier_id: "" });
 
   useEffect(() => {
     if (existing && existing.id !== loadedForId) {
@@ -227,6 +235,23 @@ export function QuotationBuilderPage() {
     onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Couldn't reassign owner", "risk"),
   });
 
+  const createCustomer = useMutation({
+    mutationFn: () =>
+      api.post<Customer>("/customers", {
+        name: newCustomerForm.name,
+        email: newCustomerForm.email,
+        tier_id: newCustomerForm.tier_id,
+      }),
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      setCustomerId(created.id);
+      setNewCustomerOpen(false);
+      setNewCustomerForm({ name: "", email: "", tier_id: "" });
+      toast.push(`Customer created — you're the account owner`);
+    },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Couldn't create customer", "risk"),
+  });
+
   // Warning, not a block: any rep can still quote any customer. This just surfaces that
   // someone else already owns or is actively working this account, same spirit as the
   // negotiation/recompute flows -- real data surfaced to a human, not a rule enforced.
@@ -271,6 +296,11 @@ export function QuotationBuilderPage() {
         <Select id="qb-pricelist" label="Price List" disabled>
           <option>Standard (by tier)</option>
         </Select>
+        {!isEditing && (
+          <Button variant="secondary" onClick={() => setNewCustomerOpen(true)}>
+            + New Customer
+          </Button>
+        )}
       </div>
 
       {selectedCustomer && (
@@ -542,6 +572,54 @@ export function QuotationBuilderPage() {
           </Button>
         </div>
       </div>
+
+      <Modal open={newCustomerOpen} onClose={() => setNewCustomerOpen(false)} title="New customer">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            createCustomer.mutate();
+          }}
+          className="flex flex-col gap-3"
+        >
+          <Input
+            id="nc-name"
+            label="Name"
+            value={newCustomerForm.name}
+            onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+            required
+          />
+          <Input
+            id="nc-email"
+            label="Email"
+            type="email"
+            value={newCustomerForm.email}
+            onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+            required
+          />
+          <Select
+            id="nc-tier"
+            label="Tier"
+            value={newCustomerForm.tier_id}
+            onChange={(e) => setNewCustomerForm({ ...newCustomerForm, tier_id: e.target.value })}
+            required
+          >
+            <option value="" disabled>
+              Select…
+            </option>
+            {tiers?.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+          {user?.role === "SALES_REP" && (
+            <p className="text-xs text-ink-muted">You'll automatically become this customer's account owner.</p>
+          )}
+          <Button type="submit" disabled={createCustomer.isPending} className="mt-2">
+            {createCustomer.isPending ? "Creating…" : "Create customer"}
+          </Button>
+        </form>
+      </Modal>
     </div>
   );
 }

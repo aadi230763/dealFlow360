@@ -46,12 +46,20 @@ def list_customers(db: Session = Depends(get_db), _: User = Depends(get_current_
 
 @router.post("", response_model=CustomerOut, status_code=status.HTTP_201_CREATED)
 def create_customer(
-    body: CustomerCreate, db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN))
+    body: CustomerCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role(Role.ADMIN, Role.SALES_MANAGER, Role.SALES_REP)),
 ) -> CustomerOut:
-    customer = Customer(id=uuid.uuid4(), **body.model_dump())
+    fields = body.model_dump()
+    # A rep always becomes the owner of a customer they create -- never something they
+    # pick, so they can't create an account and hand it to someone else in the same call.
+    # Admin/manager may optionally set an owner (or leave it unassigned).
+    if user.role == Role.SALES_REP:
+        fields["owner_user_id"] = user.id
+    customer = Customer(id=uuid.uuid4(), **fields)
     db.add(customer)
     db.flush()
-    log_event(db, entity_type="customer", entity_id=str(customer.id), action="create", actor=user, payload=body.model_dump(mode="json"))
+    log_event(db, entity_type="customer", entity_id=str(customer.id), action="create", actor=user, payload={**body.model_dump(mode="json"), "owner_user_id": str(fields["owner_user_id"]) if fields["owner_user_id"] else None})
     db.commit()
     return _to_out(db, customer)
 

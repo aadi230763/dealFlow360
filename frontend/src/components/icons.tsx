@@ -101,3 +101,23 @@ export function InboxIcon(props: IconProps) {
     props,
   );
 }
+
+export function EyeIcon(props: IconProps) {
+  return base(
+    <>
+      <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </>,
+    props,
+  );
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return base(
+    <>
+      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-10.5-7-10.5-7a19.12 19.12 0 0 1 4.22-5.06M9.9 4.24A10.4 10.4 0 0 1 12 5c7 0 10.5 7 10.5 7a19.2 19.2 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <path d="M1 1l22 22" />
+    </>,
+    props,
+  );
+}
