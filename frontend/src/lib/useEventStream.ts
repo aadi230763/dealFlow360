@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getToken } from "@/api/client";
+import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/Toast";
 
 const ACTION_LABEL: Record<string, string> = {
@@ -12,6 +13,7 @@ const ACTION_LABEL: Record<string, string> = {
 export function useEventStream(): void {
   const qc = useQueryClient();
   const toast = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const token = getToken();
@@ -24,6 +26,13 @@ export function useEventStream(): void {
       try {
         data = JSON.parse(event.data);
       } catch {
+        return;
+      }
+
+      if (data.type === "notification_created") {
+        if (user && data.user_id === user.id) {
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+        }
         return;
       }
 
@@ -57,5 +66,5 @@ export function useEventStream(): void {
     };
 
     return () => source.close();
-  }, [qc, toast]);
+  }, [qc, toast, user]);
 }

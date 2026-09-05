@@ -25,9 +25,10 @@ function NegotiationRow({ quotationId, req }: { quotationId: string; req: Negoti
   const toast = useToast();
   const [responding, setResponding] = useState<"counter" | "decline" | null>(null);
   const [message, setMessage] = useState("");
+  const [counterPct, setCounterPct] = useState("");
 
   const respondMutation = useMutation({
-    mutationFn: (body: { action: string; response_message?: string | null }) =>
+    mutationFn: (body: { action: string; response_message?: string | null; counter_discount_pct?: number | null }) =>
       api.post<NegotiationRequestOut>(`/negotiations/${req.id}/respond`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["negotiations", quotationId] });
@@ -36,6 +37,7 @@ function NegotiationRow({ quotationId, req }: { quotationId: string; req: Negoti
       toast.push("Response sent");
       setResponding(null);
       setMessage("");
+      setCounterPct("");
     },
     onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Couldn't respond", "risk"),
   });
@@ -63,6 +65,14 @@ function NegotiationRow({ quotationId, req }: { quotationId: string; req: Negoti
             <p className="mt-1 rounded-md bg-canvas px-2 py-1 text-xs text-ink-muted">
               {req.responder_name ? `${req.responder_name}: ` : ""}
               {req.response_message}
+              {req.counter_discount_pct && (
+                <span className="ml-1 font-medium text-ink">— countered at {req.counter_discount_pct}% off</span>
+              )}
+            </p>
+          )}
+          {req.status === "COUNTERED" && req.counter_discount_pct && (
+            <p className="mt-1 text-xs text-ink-muted">
+              This counter is now visible to the customer on their portal link.
             </p>
           )}
         </div>
@@ -87,25 +97,55 @@ function NegotiationRow({ quotationId, req }: { quotationId: string; req: Negoti
         )}
       </div>
       {responding && (
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            type="text"
-            autoFocus
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={responding === "counter" ? "Your counter-offer…" : "Reason for declining…"}
-            className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary"
-          />
-          <Button
-            variant={responding === "counter" ? "warning" : "danger"}
-            disabled={!message.trim() || respondMutation.isPending}
-            onClick={() => respondMutation.mutate({ action: responding, response_message: message.trim() })}
-          >
-            Send
-          </Button>
-          <Button variant="ghost" onClick={() => setResponding(null)}>
-            Cancel
-          </Button>
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            {responding === "counter" && req.type === "COUNTER_DISCOUNT" && (
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                autoFocus
+                value={counterPct}
+                onChange={(e) => setCounterPct(e.target.value)}
+                placeholder="Counter %"
+                className="w-28 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary"
+              />
+            )}
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={responding === "counter" ? "Note to the customer…" : "Reason for declining…"}
+              className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary"
+            />
+            <Button
+              variant={responding === "counter" ? "warning" : "danger"}
+              disabled={
+                !message.trim() ||
+                respondMutation.isPending ||
+                (responding === "counter" && req.type === "COUNTER_DISCOUNT" && !counterPct)
+              }
+              onClick={() =>
+                respondMutation.mutate({
+                  action: responding,
+                  response_message: message.trim(),
+                  counter_discount_pct:
+                    responding === "counter" && counterPct ? Number(counterPct) : null,
+                })
+              }
+            >
+              Send
+            </Button>
+            <Button variant="ghost" onClick={() => setResponding(null)}>
+              Cancel
+            </Button>
+          </div>
+          {responding === "counter" && req.type === "COUNTER_DISCOUNT" && (
+            <p className="text-xs text-ink-muted">
+              This percentage is what the customer will see on their portal link — the note is just context.
+            </p>
+          )}
         </div>
       )}
     </div>

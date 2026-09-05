@@ -17,6 +17,7 @@ from app.api import (
     fulfillment,
     health,
     me,
+    notifications,
     pairings,
     portal,
     products,
@@ -24,6 +25,7 @@ from app.api import (
     settings as settings_api,
     subscription_plans,
     tiers,
+    users,
     warehouses,
 )
 from app.core.config import settings
@@ -46,6 +48,7 @@ import app.models.approval_request  # noqa: F401
 import app.models.fulfillment  # noqa: F401
 import app.models.billing  # noqa: F401
 import app.models.portal  # noqa: F401
+import app.models.notification  # noqa: F401
 
 Base.metadata.create_all(bind=engine)
 
@@ -70,6 +73,7 @@ app.include_router(me.router)
 app.include_router(categories.router)
 app.include_router(products.router)
 app.include_router(tiers.router)
+app.include_router(users.router)
 app.include_router(customers.router)
 app.include_router(ceilings.router)
 app.include_router(approval_rules.router)
@@ -83,5 +87,6 @@ app.include_router(fulfillment.router)
 app.include_router(billing.router)
 app.include_router(portal.router)
 app.include_router(dashboard.router)
+app.include_router(notifications.router)
 app.include_router(events.router)
 app.include_router(audit.router)

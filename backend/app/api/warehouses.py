@@ -64,7 +64,7 @@ def upsert_stock(
     product_id: uuid.UUID,
     body: StockLevelUpsert,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role(Role.ADMIN)),
+    user: User = Depends(require_role(Role.ADMIN, Role.SHIPMENT_MANAGER)),
 ) -> StockLevel:
     stock = (
         db.query(StockLevel)

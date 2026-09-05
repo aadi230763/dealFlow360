@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import log_event
 from app.core.deps import get_current_user, get_db
 from app.core.events import publish
+from app.core.notifications import dispatch_event
 from app.api.fulfillment import ensure_fulfillment_planned
 from app.models.approval_request import ApprovalRequest, ApprovalRequestStatus
 from app.models.customer import Customer, CustomerTier
@@ -140,6 +141,29 @@ def act_on_approval(
             quotation.status = QuotationStatus.APPROVED
             db.flush()
             ensure_fulfillment_planned(db, quotation, user)
+            dispatch_event(
+                db,
+                "quotation_approved",
+                {"owner_user_id": quotation.owner_user_id, "number": quotation.number},
+                quotation.id,
+            )
+        else:
+            next_step = (
+                db.query(ApprovalRequest)
+                .filter(
+                    ApprovalRequest.quotation_id == req.quotation_id,
+                    ApprovalRequest.status == ApprovalRequestStatus.PENDING,
+                )
+                .order_by(ApprovalRequest.sequence)
+                .first()
+            )
+            if next_step is not None:
+                dispatch_event(
+                    db,
+                    "quotation_routed_to_next_approver",
+                    {"role": next_step.required_role, "number": quotation.number},
+                    quotation.id,
+                )
     elif body.action == "reject":
         req.status = ApprovalRequestStatus.REJECTED
         quotation.status = QuotationStatus.REJECTED
@@ -147,6 +171,12 @@ def act_on_approval(
             ApprovalRequest.quotation_id == req.quotation_id,
             ApprovalRequest.status == ApprovalRequestStatus.PENDING,
         ).update({"status": ApprovalRequestStatus.CANCELLED})
+        dispatch_event(
+            db,
+            "quotation_rejected",
+            {"owner_user_id": quotation.owner_user_id, "number": quotation.number},
+            quotation.id,
+        )
     else:  # return_for_revision
         req.status = ApprovalRequestStatus.RETURNED
         quotation.status = QuotationStatus.DRAFT
@@ -154,6 +184,12 @@ def act_on_approval(
             ApprovalRequest.quotation_id == req.quotation_id,
             ApprovalRequest.status == ApprovalRequestStatus.PENDING,
         ).update({"status": ApprovalRequestStatus.CANCELLED})
+        dispatch_event(
+            db,
+            "quotation_returned_for_revision",
+            {"owner_user_id": quotation.owner_user_id, "number": quotation.number},
+            quotation.id,
+        )
 
     quotation.last_activity_at = now
     db.flush()

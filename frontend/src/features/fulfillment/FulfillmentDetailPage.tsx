@@ -10,6 +10,7 @@ import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { Input } from "@/components/Input";
 import { SkeletonText } from "@/components/Skeleton";
+import { useAuth } from "@/context/AuthContext";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -17,6 +18,11 @@ function round2(n: number): number {
 
 export function FulfillmentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  // Matches the backend's require_role on POST /fulfillment/{id}/override -- hide the
+  // button for roles that would just get a 403 back.
+  const canOverride =
+    user?.role === "ADMIN" || user?.role === "SALES_MANAGER" || user?.role === "SHIPMENT_MANAGER";
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [overrideMode, setOverrideMode] = useState(false);
@@ -293,7 +299,7 @@ export function FulfillmentDetailPage() {
             Accept Suggested Split
           </Button>
         )}
-        {fulfillment.status !== "ACCEPTED" && !overrideMode && (
+        {fulfillment.status !== "ACCEPTED" && !overrideMode && canOverride && (
           <Button variant="secondary" onClick={() => setOverrideMode(true)}>
             Manual Override
           </Button>

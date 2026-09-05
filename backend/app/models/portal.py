@@ -64,3 +64,8 @@ class NegotiationRequest(Base):
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     responder_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     response_message: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    # The rep's own counter-number when they respond with action="counter" -- distinct from
+    # `proposed_discount_pct` above, which is always the customer's ask. Without this the
+    # rep's counter only ever lived in free-text `response_message` and never reached the
+    # portal at all.
+    counter_discount_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)

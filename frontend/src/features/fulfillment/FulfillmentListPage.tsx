@@ -15,7 +15,7 @@ import { Button } from "@/components/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/Toast";
 
-function StockRow({ stock, warehouseName, productName, isAdmin }: { stock: StockLevel; warehouseName: string; productName: string; isAdmin: boolean }) {
+function StockRow({ stock, warehouseName, productName, canEditStock }: { stock: StockLevel; warehouseName: string; productName: string; canEditStock: boolean }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
@@ -57,9 +57,9 @@ function StockRow({ stock, warehouseName, productName, isAdmin }: { stock: Stock
         ) : (
           <button
             className="rounded px-1 hover:bg-canvas disabled:cursor-default"
-            onClick={() => isAdmin && setEditing(true)}
-            disabled={!isAdmin}
-            title={isAdmin ? "Click to edit" : undefined}
+            onClick={() => canEditStock && setEditing(true)}
+            disabled={!canEditStock}
+            title={canEditStock ? "Click to edit" : undefined}
           >
             {stock.on_hand}
           </button>
@@ -73,7 +73,7 @@ function StockRow({ stock, warehouseName, productName, isAdmin }: { stock: Stock
 
 export function FulfillmentListPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
+  const canEditStock = user?.role === "ADMIN" || user?.role === "SHIPMENT_MANAGER";
 
   const { data: warehouses } = useQuery({
     queryKey: ["warehouses"],
@@ -134,7 +134,7 @@ export function FulfillmentListPage() {
                 stock={s}
                 warehouseName={warehouseName(s.warehouse_id)}
                 productName={productName(s.product_id)}
-                isAdmin={isAdmin}
+                canEditStock={canEditStock}
               />
             ))}
           </Table>

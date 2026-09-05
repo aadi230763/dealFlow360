@@ -26,5 +26,10 @@ class Customer(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer_tiers.id"), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="INR")
+    # Account ownership: nullable because not every customer needs one assigned, and
+    # existing rows predate this column. Reassigned by ADMIN/SALES_MANAGER only -- this is
+    # a warning surface, not an access-control boundary, so any rep can still see and quote
+    # any customer; it just tells them (and everyone else touching this account) who owns it.
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     tier: Mapped[CustomerTier] = relationship(back_populates="customers")

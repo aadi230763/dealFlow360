@@ -33,7 +33,7 @@ class CustomerBase(BaseModel):
 
 
 class CustomerCreate(CustomerBase):
-    pass
+    owner_user_id: uuid.UUID | None = None
 
 
 class CustomerUpdate(BaseModel):
@@ -41,8 +41,11 @@ class CustomerUpdate(BaseModel):
     email: EmailStr | None = None
     tier_id: uuid.UUID | None = None
     currency: str | None = None
+    owner_user_id: uuid.UUID | None = None
 
 
 class CustomerOut(CustomerBase):
     id: uuid.UUID
+    owner_user_id: uuid.UUID | None = None
+    owner_name: str | None = None
     model_config = {"from_attributes": True}

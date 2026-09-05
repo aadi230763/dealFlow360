@@ -13,6 +13,9 @@ class Role(str, enum.Enum):
     SALES_REP = "SALES_REP"
     SALES_MANAGER = "SALES_MANAGER"
     FINANCE = "FINANCE"
+    # Owns warehouse stock levels and the manual fulfillment split -- who ships what from
+    # which warehouse. Distinct from SALES_MANAGER (who owns discount/risk approvals).
+    SHIPMENT_MANAGER = "SHIPMENT_MANAGER"
 
 
 class User(Base):

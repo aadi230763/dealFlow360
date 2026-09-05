@@ -8,9 +8,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.audit import log_event
-from app.core.deps import get_current_user, get_db
+from app.core.deps import get_current_user, get_db, require_role
 from app.core.dismissals import dismiss as dismiss_suggestion_for, get_dismissed
 from app.core.events import publish
+from app.core.notifications import dispatch_event
 from app.api.fulfillment import ensure_fulfillment_planned
 from app.engine.ceilings import resolve_ceiling
 from app.engine.pricing import LineInput, QuotationPricing, price_quotation
@@ -24,7 +25,7 @@ from app.models.customer import Customer, CustomerTier
 from app.models.pairing import ProductPairing
 from app.models.pricing_config import CategoryTierCeiling
 from app.models.quotation import Quotation, QuotationLine, QuotationStatus
-from app.models.user import User
+from app.models.user import Role, User
 from app.schemas.dashboard import NudgeActionOut
 from app.schemas.quotation import (
     LinePricingOut,
@@ -471,6 +472,20 @@ def submit_quotation(
             "new_status": quotation.status.value,
         },
     )
+    if chain:
+        dispatch_event(
+            db,
+            "quotation_submitted_for_approval",
+            {"number": quotation.number, "role": chain[0].required_role},
+            quotation.id,
+        )
+    else:
+        dispatch_event(
+            db,
+            "quotation_auto_approved",
+            {"number": quotation.number, "owner_user_id": quotation.owner_user_id},
+            quotation.id,
+        )
     db.commit()
     db.refresh(quotation)
     publish({"type": "quotation_submitted", "quotation_id": str(quotation.id), "status": quotation.status.value})
@@ -559,6 +574,13 @@ def recompute_quotation(
             "chain_changed": chain_changed,
         },
     )
+    if chain_changed and quotation.status == QuotationStatus.PENDING_APPROVAL:
+        dispatch_event(
+            db,
+            "quotation_recomputed_reentered_approval",
+            {"number": quotation.number, "owner_user_id": quotation.owner_user_id},
+            quotation.id,
+        )
     db.commit()
     db.refresh(quotation)
     publish({"type": "quotation_recomputed", "quotation_id": str(quotation.id), "status": quotation.status.value})
@@ -647,14 +669,18 @@ def _nudge_or_escalate(quotation_id: uuid.UUID, action: str, db: Session, user: 
 
 @router.post("/{quotation_id}/nudge", response_model=NudgeActionOut)
 def nudge_quotation(
-    quotation_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    quotation_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role(Role.SALES_MANAGER, Role.FINANCE, Role.ADMIN)),
 ) -> NudgeActionOut:
     return _nudge_or_escalate(quotation_id, "nudge", db, user)
 
 
 @router.post("/{quotation_id}/escalate", response_model=NudgeActionOut)
 def escalate_quotation(
-    quotation_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    quotation_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role(Role.SALES_MANAGER, Role.FINANCE, Role.ADMIN)),
 ) -> NudgeActionOut:
     return _nudge_or_escalate(quotation_id, "escalate", db, user)
 

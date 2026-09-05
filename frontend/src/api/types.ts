@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "SALES_REP" | "SALES_MANAGER" | "FINANCE";
+export type Role = "ADMIN" | "SALES_REP" | "SALES_MANAGER" | "FINANCE" | "SHIPMENT_MANAGER";
 
 export interface UserOut {
   id: string;
@@ -57,6 +57,8 @@ export interface Customer {
   email: string;
   tier_id: string;
   currency: string;
+  owner_user_id: string | null;
+  owner_name: string | null;
 }
 
 export interface CeilingCell {
@@ -498,6 +500,8 @@ export interface PortalQuotationOut {
   grand_total: string;
   latest_counter_discount_pct: string | null;
   latest_requested_delivery_date: string | null;
+  rep_counter_discount_pct: string | null;
+  rep_counter_message: string | null;
   expires_at: string;
 }
 
@@ -534,6 +538,7 @@ export interface NegotiationRequestOut {
   responded_at: string | null;
   responder_name: string | null;
   response_message: string | null;
+  counter_discount_pct: string | null;
 }
 
 // Phase 8 -- deal health, anomalies and reporting.
@@ -609,4 +614,14 @@ export interface ReportOut {
 export interface NudgeActionOut {
   quotation_id: string;
   action: "nudge" | "escalate";
+}
+
+export interface NotificationOut {
+  id: string;
+  event_type: string;
+  message: string;
+  quotation_id: string | null;
+  quotation_number: string | null;
+  read_at: string | null;
+  created_at: string;
 }

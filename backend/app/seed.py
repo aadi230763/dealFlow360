@@ -34,6 +34,7 @@ SEED_USERS = [
     ("rep3@dealflow360.com", "Priya Rep3", Role.SALES_REP),
     ("manager@dealflow360.com", "Marco Manager", Role.SALES_MANAGER),
     ("finance@dealflow360.com", "Fiona Finance", Role.FINANCE),
+    ("shipping@dealflow360.com", "Sam Shipping", Role.SHIPMENT_MANAGER),
 ]
 SEED_PASSWORD = "password123"
 
@@ -106,6 +107,16 @@ PAIRINGS = [
     ("HW-MON-4K", "HW-DOCK-01", Decimal("0.65"), Decimal("15")),
     ("SB-LIC-STD", "SB-SUP-BASIC", Decimal("0.55"), Decimal("10")),
     ("SV-SETUP-01", "SV-ONB-EXT", Decimal("0.60"), Decimal("10")),
+    # Every product below previously had zero coverage as an origin -- adding a laptop was
+    # the only way to ever see a suggestion. Rounds out the mesh so any seeded product can
+    # surface a relevant cross-sell, not just Hardware.
+    ("HW-DOCK-01", "HW-MON-4K", Decimal("0.50"), Decimal("15")),
+    ("HW-DOCK-01", "HW-MOU-WL", Decimal("0.40"), Decimal("15")),
+    ("HW-MOU-WL", "HW-DOCK-01", Decimal("0.40"), Decimal("15")),
+    ("SB-LIC-PREM", "SV-SUP-PRI", Decimal("0.65"), Decimal("10")),
+    ("SB-SUP-BASIC", "SB-LIC-STD", Decimal("0.45"), Decimal("10")),
+    ("SV-ONB-EXT", "SV-SUP-PRI", Decimal("0.55"), Decimal("10")),
+    ("SV-SUP-PRI", "SV-ONB-EXT", Decimal("0.40"), Decimal("10")),
 ]
 
 SYSTEM_SETTINGS = {
@@ -394,16 +405,27 @@ def seed() -> None:
             product.recurring_interval = "MONTHLY" if sku in subscription_skus else None
             product_by_sku[sku] = product
 
-        # Customers
+        # Customers -- each gets an owning rep, round-robin, so the account-ownership
+        # warning (two reps quoting the same customer) has something real to demo on a
+        # fresh seed rather than every customer starting unassigned.
+        reps_for_ownership = db.query(User).filter(User.role == Role.SALES_REP).order_by(User.email).all()
         customer_by_email: dict[str, Customer] = {}
-        for name, email, tier_name in CUSTOMERS:
+        for i, (name, email, tier_name) in enumerate(CUSTOMERS):
             customer = db.query(Customer).filter(Customer.email == email).first()
+            owner_id = reps_for_ownership[i % len(reps_for_ownership)].id if reps_for_ownership else None
             if customer is None:
                 customer = Customer(
-                    id=uuid.uuid4(), name=name, email=email, tier_id=tier_by_name[tier_name].id, currency="INR"
+                    id=uuid.uuid4(),
+                    name=name,
+                    email=email,
+                    tier_id=tier_by_name[tier_name].id,
+                    currency="INR",
+                    owner_user_id=owner_id,
                 )
                 db.add(customer)
                 db.flush()
+            elif customer.owner_user_id is None:
+                customer.owner_user_id = owner_id
             customer_by_email[email] = customer
 
         # Warehouses

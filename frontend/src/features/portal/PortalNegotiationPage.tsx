@@ -44,7 +44,13 @@ export function PortalNegotiationPage() {
       if (line.comment) initial[line.id] = line.comment;
     }
     setLineComments(initial);
-    if (quotation.latest_counter_discount_pct) setCounterDiscount(quotation.latest_counter_discount_pct);
+    // The rep's counter is the live offer on the table -- pre-fill with that over the
+    // customer's own earlier ask, so accepting it is just "Submit Request" unchanged.
+    if (quotation.rep_counter_discount_pct) {
+      setCounterDiscount(quotation.rep_counter_discount_pct);
+    } else if (quotation.latest_counter_discount_pct) {
+      setCounterDiscount(quotation.latest_counter_discount_pct);
+    }
     if (quotation.latest_requested_delivery_date) setDeliveryDate(quotation.latest_requested_delivery_date);
   }, [quotation]);
 
@@ -104,6 +110,15 @@ export function PortalNegotiationPage() {
 
       {confirmResult && (
         <Callout tone={confirmResult.status === "CONFIRMED" ? "success" : "warning"}>{confirmResult.message}</Callout>
+      )}
+
+      {quotation.rep_counter_discount_pct && !isLocked && (
+        <Callout tone="warning">
+          Your sales rep countered at <strong>{quotation.rep_counter_discount_pct}% off</strong>
+          {quotation.rep_counter_message ? ` — "${quotation.rep_counter_message}"` : ""}. It's pre-filled into
+          Counter Discount % below — click Submit Request to accept it (your rep confirms it on their side), or
+          change the number first to negotiate further.
+        </Callout>
       )}
 
       <Card padding="none" className="overflow-x-auto">

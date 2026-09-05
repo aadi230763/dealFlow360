@@ -8,7 +8,7 @@ import { Card } from "@/components/Card";
 import { ApiError } from "@/api/client";
 import type { Role } from "@/api/types";
 
-const ROLES: Role[] = ["ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE"];
+const ROLES: Role[] = ["ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE", "SHIPMENT_MANAGER"];
 
 export function SignupPage() {
   const { user, loading, signup } = useAuth();

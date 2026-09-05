@@ -35,6 +35,11 @@ class PortalQuotationOut(BaseModel):
     grand_total: Decimal
     latest_counter_discount_pct: Decimal | None = None
     latest_requested_delivery_date: date | None = None
+    # The sales team's own counter-offer, when they responded "counter" instead of accepting
+    # the customer's ask outright -- previously this only lived in an internal free-text
+    # field and never reached the customer at all.
+    rep_counter_discount_pct: Decimal | None = None
+    rep_counter_message: str | None = None
     expires_at: datetime
 
 
@@ -68,8 +73,10 @@ class NegotiationRequestOut(BaseModel):
     responded_at: datetime | None
     responder_name: str | None
     response_message: str | None
+    counter_discount_pct: Decimal | None = None
 
 
 class NegotiationRespondRequest(BaseModel):
     action: str  # "accept" | "counter" | "decline"
     response_message: str | None = None
+    counter_discount_pct: Decimal | None = None

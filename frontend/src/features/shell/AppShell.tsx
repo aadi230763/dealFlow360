@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/Badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Dropdown, DropdownItem } from "@/components/Dropdown";
+import { NotificationBell } from "@/components/NotificationBell";
 import { ChevronDownIcon, CloseIcon, MenuIcon } from "@/components/icons";
 import { useEventStream } from "@/lib/useEventStream";
 
@@ -72,6 +73,7 @@ export function AppShell() {
             </nav>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {user && <NotificationBell />}
             <ThemeToggle />
             {user && (
               <Dropdown

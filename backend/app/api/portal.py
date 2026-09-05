@@ -11,6 +11,7 @@ from app.api.quotations import _apply_lines, _build_pricing, _risk_for_persisted
 from app.core.audit import log_event
 from app.core.deps import get_current_user, get_db
 from app.core.events import publish
+from app.core.notifications import dispatch_event
 from app.core.portal_auth import generate_portal_token, get_portal_context, hash_portal_token
 from app.engine.risk import compute_risk
 from app.models.approval_request import ApprovalRequest, ApprovalRequestStatus
@@ -121,6 +122,7 @@ def _portal_quotation_out(db: Session, quotation: Quotation, portal_token: Porta
 
     latest_counter = _latest_negotiation(db, quotation.id, NegotiationType.COUNTER_DISCOUNT, line_id=None)
     latest_change = _latest_negotiation(db, quotation.id, NegotiationType.CHANGE_REQUEST, line_id=None)
+    rep_countered = latest_counter is not None and latest_counter.status == NegotiationStatus.COUNTERED
 
     return PortalQuotationOut(
         number=quotation.number,
@@ -134,6 +136,8 @@ def _portal_quotation_out(db: Session, quotation: Quotation, portal_token: Porta
         grand_total=quotation.grand_total,
         latest_counter_discount_pct=latest_counter.proposed_discount_pct if latest_counter else None,
         latest_requested_delivery_date=latest_change.requested_delivery_date if latest_change else None,
+        rep_counter_discount_pct=latest_counter.counter_discount_pct if rep_countered else None,
+        rep_counter_message=latest_counter.response_message if rep_countered else None,
         expires_at=portal_token.expires_at,
     )
 
@@ -214,6 +218,12 @@ def negotiate(
         actor=None,
         payload={"requests_created": created},
     )
+    dispatch_event(
+        db,
+        "negotiation_created",
+        {"owner_user_id": quotation.owner_user_id, "number": quotation.number},
+        quotation.id,
+    )
     db.commit()
     db.refresh(quotation)
     publish({"type": "negotiation_created", "quotation_id": str(quotation.id), "status": quotation.status.value})
@@ -269,6 +279,12 @@ def confirm_from_portal(
             actor=None,
             payload={"blended": str(risk.blended), "peak": str(risk.peak), "chain": [s.required_role for s in chain]},
         )
+        dispatch_event(
+            db,
+            "quotation_reentered_approval_from_portal",
+            {"role": chain[0].required_role, "number": quotation.number},
+            quotation.id,
+        )
         db.commit()
         publish({"type": "quotation_reentered_approval", "quotation_id": str(quotation.id), "status": quotation.status.value})
         return PortalConfirmOut(
@@ -321,6 +337,7 @@ def _negotiation_to_schema(db: Session, req: NegotiationRequest) -> NegotiationR
         responded_at=req.responded_at,
         responder_name=responder_name,
         response_message=req.response_message,
+        counter_discount_pct=req.counter_discount_pct,
     )
 
 
@@ -356,6 +373,8 @@ def respond_to_negotiation(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
     if body.action in ("counter", "decline") and not body.response_message:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A response message is required for this action")
+    if body.action == "counter" and req.type == NegotiationType.COUNTER_DISCOUNT and body.counter_discount_pct is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A counter discount % is required to counter a discount request")
 
     quotation = db.get(Quotation, req.quotation_id)
     if quotation is None:
@@ -399,6 +418,7 @@ def respond_to_negotiation(
             quotation.erosion_amount = risk.erosion
     elif body.action == "counter":
         req.status = NegotiationStatus.COUNTERED
+        req.counter_discount_pct = body.counter_discount_pct
     else:
         req.status = NegotiationStatus.DECLINED
 

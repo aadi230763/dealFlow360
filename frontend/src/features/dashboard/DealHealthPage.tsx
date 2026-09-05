@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
+import { useAuth } from "@/context/AuthContext";
 import type {
   DashboardHealthOut,
   DashboardMetricsOut,
@@ -157,6 +158,11 @@ function MarginTrendChart({ points }: { points: DashboardMetricsOut["margin_tren
 export function DealHealthPage() {
   const qc = useQueryClient();
   const toast = useToast();
+  const { user } = useAuth();
+  // Nudge/Escalate are a manager-facing follow-up action on a rep's deal, not something a
+  // rep should be able to do to themselves or another rep -- the backend enforces this too
+  // (require_role on both endpoints), this just keeps a rep from seeing a button that 403s.
+  const canAct = user?.role === "SALES_MANAGER" || user?.role === "FINANCE" || user?.role === "ADMIN";
 
   const { data: health, isLoading } = useQuery({
     queryKey: ["dashboard-health"],
@@ -267,22 +273,26 @@ export function DealHealthPage() {
                     )}
                   </td>
                   <td className="px-3.5 py-2.5">
-                    <div className="flex justify-end gap-1.5">
-                      <Button
-                        variant="primary"
-                        onClick={() => act(row, "nudge")}
-                        disabled={busyKey === row.key}
-                      >
-                        Nudge Rep
-                      </Button>
-                      <Button
-                        variant="danger"
-                        onClick={() => act(row, "escalate")}
-                        disabled={busyKey === row.key}
-                      >
-                        Escalate
-                      </Button>
-                    </div>
+                    {canAct ? (
+                      <div className="flex justify-end gap-1.5">
+                        <Button
+                          variant="primary"
+                          onClick={() => act(row, "nudge")}
+                          disabled={busyKey === row.key}
+                        >
+                          Nudge Rep
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => act(row, "escalate")}
+                          disabled={busyKey === row.key}
+                        >
+                          Escalate
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="block text-right text-xs text-ink-faint">Manager/Finance only</span>
+                    )}
                   </td>
                 </tr>
               ))}

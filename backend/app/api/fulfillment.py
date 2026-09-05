@@ -317,7 +317,7 @@ def override_fulfillment(
     fulfillment_id: uuid.UUID,
     body: OverrideRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role(Role.ADMIN, Role.SALES_MANAGER)),
+    user: User = Depends(require_role(Role.ADMIN, Role.SALES_MANAGER, Role.SHIPMENT_MANAGER)),
 ) -> FulfillmentOut:
     fulfillment = db.get(Fulfillment, fulfillment_id)
     if fulfillment is None:

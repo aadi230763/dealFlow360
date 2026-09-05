@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
 import type {
@@ -8,9 +8,12 @@ import type {
   Product,
   Quotation,
   QuotationLineIn,
+  QuotationListItem,
   QuotationPreview,
   SubscriptionPlan,
+  UserOut,
 } from "@/api/types";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
 import { Input } from "@/components/Input";
@@ -23,6 +26,8 @@ import { RiskMeter } from "./RiskMeter";
 import { RiskBreakdownPanel } from "./RiskBreakdownPanel";
 import { QuotationDetailView } from "./QuotationDetailView";
 import { UpsellSuggestions } from "./UpsellSuggestions";
+
+const TERMINAL_STATUSES = new Set(["CONFIRMED", "INVOICED", "REJECTED", "CANCELLED"]);
 
 function routingHelperText(pricing: QuotationPreview | null): string {
   if (!pricing) return "";
@@ -62,6 +67,17 @@ export function QuotationBuilderPage() {
   const { data: subscriptionPlans } = useQuery({
     queryKey: ["subscription-plans"],
     queryFn: () => api.get<SubscriptionPlan[]>("/subscription-plans"),
+  });
+  const { data: allQuotations } = useQuery({
+    queryKey: ["quotations"],
+    queryFn: () => api.get<QuotationListItem[]>("/quotations"),
+  });
+  const { user } = useAuth();
+  const canReassignOwner = user?.role === "ADMIN" || user?.role === "SALES_MANAGER";
+  const { data: reps } = useQuery({
+    queryKey: ["users", "SALES_REP"],
+    queryFn: () => api.get<UserOut[]>("/users?role=SALES_REP"),
+    enabled: canReassignOwner,
   });
 
   const [customerId, setCustomerId] = useState("");
@@ -199,6 +215,32 @@ export function QuotationBuilderPage() {
     }
   };
 
+  const selectedCustomer = customers?.find((c) => c.id === customerId);
+
+  const reassignOwner = useMutation({
+    mutationFn: (ownerUserId: string) =>
+      api.put<Customer>(`/customers/${customerId}`, { owner_user_id: ownerUserId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      toast.push("Account owner updated");
+    },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Couldn't reassign owner", "risk"),
+  });
+
+  // Warning, not a block: any rep can still quote any customer. This just surfaces that
+  // someone else already owns or is actively working this account, same spirit as the
+  // negotiation/recompute flows -- real data surfaced to a human, not a rule enforced.
+  const othersWorkingThisCustomer = useMemo(() => {
+    if (!customerId || !allQuotations || !user) return [];
+    return allQuotations.filter(
+      (q) =>
+        q.customer_id === customerId &&
+        q.owner_user_id !== user.id &&
+        !TERMINAL_STATUSES.has(q.status) &&
+        q.id !== existing?.id,
+    );
+  }, [customerId, allQuotations, user, existing?.id]);
+
   if (isEditing && existing && existing.status !== "DRAFT") {
     return <QuotationDetailView quotation={existing} />;
   }
@@ -230,6 +272,53 @@ export function QuotationBuilderPage() {
           <option>Standard (by tier)</option>
         </Select>
       </div>
+
+      {selectedCustomer && (
+        <div className="flex flex-wrap items-end gap-2 text-sm text-ink-muted">
+          <span>
+            Account owner:{" "}
+            <span className="font-medium text-ink">{selectedCustomer.owner_name ?? "Unassigned"}</span>
+          </span>
+          {canReassignOwner && (
+            <Select
+              id="qb-reassign-owner"
+              label="Reassign to"
+              value={selectedCustomer.owner_user_id ?? ""}
+              onChange={(e) => e.target.value && reassignOwner.mutate(e.target.value)}
+              disabled={reassignOwner.isPending}
+            >
+              <option value="" disabled>
+                Choose a rep…
+              </option>
+              {reps?.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </div>
+      )}
+
+      {selectedCustomer &&
+        selectedCustomer.owner_user_id &&
+        selectedCustomer.owner_user_id !== user?.id && (
+          <Callout tone="warning">
+            This customer's account owner is <strong>{selectedCustomer.owner_name}</strong>, not you. You can
+            still build and submit this quotation, but coordinate with them first.
+          </Callout>
+        )}
+
+      {othersWorkingThisCustomer.length > 0 && (
+        <Callout tone="warning">
+          {othersWorkingThisCustomer.length === 1 ? "Another rep" : `${othersWorkingThisCustomer.length} other reps`}{" "}
+          already {othersWorkingThisCustomer.length === 1 ? "has" : "have"} an open quotation with this customer:{" "}
+          {othersWorkingThisCustomer
+            .map((q) => `${q.number} (${q.owner_name}, ₹${Number(q.grand_total).toLocaleString("en-IN")})`)
+            .join(", ")}
+          . Not blocked — just worth checking you're not both offering different terms.
+        </Callout>
+      )}
 
       <Card padding="sm" className="flex items-end gap-2">
         <Select
