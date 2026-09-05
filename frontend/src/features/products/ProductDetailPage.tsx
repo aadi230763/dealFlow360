@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
+import { useAuth } from "@/context/AuthContext";
 import type { Category, CustomerTier, Product } from "@/api/types";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -19,6 +20,11 @@ export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  // Matches the backend's require_role(ADMIN) on PUT/POST variants/DELETE /products --
+  // hide the controls for roles that would just get a 403 back.
+  const isAdmin = user?.role === "ADMIN";
 
   const { data: product } = useQuery({
     queryKey: ["product", id],
@@ -76,6 +82,22 @@ export function ProductDetailPage() {
     onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Add variant failed", "risk"),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/products/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.push("Product deleted");
+      navigate("/products");
+    },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Delete failed", "risk"),
+  });
+
+  const onDelete = () => {
+    if (window.confirm(`Delete "${product?.name}"? This can't be undone.`)) {
+      deleteMutation.mutate();
+    }
+  };
+
   if (!product) return null;
 
   return (
@@ -87,9 +109,20 @@ export function ProductDetailPage() {
           </Link>
           <h1 className="text-xl font-semibold tracking-tight text-ink">{product.name}</h1>
         </div>
-        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? "Saving…" : "Save changes"}
-        </Button>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="danger"
+              onClick={onDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete Product"}
+            </Button>
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        )}
       </div>
 
       <Section title="General info">
@@ -100,12 +133,14 @@ export function ProductDetailPage() {
               label="Product name"
               value={form.name ?? ""}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
+              disabled={!isAdmin}
             />
             <Select
               id="pd-category"
               label="Category"
               value={form.category_id ?? ""}
               onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+              disabled={!isAdmin}
             >
               {categories?.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -119,19 +154,22 @@ export function ProductDetailPage() {
               type="number"
               value={form.list_price ?? ""}
               onChange={(e) => setForm({ ...form, list_price: e.target.value })}
+              disabled={!isAdmin}
             />
             <Input
               id="pd-unit"
               label="Unit"
               value={form.unit ?? ""}
               onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              disabled={!isAdmin}
             />
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-ink-muted">Description</span>
               <textarea
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="min-h-[70px] rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
+                disabled={!isAdmin}
+                className="min-h-[70px] rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg disabled:cursor-not-allowed disabled:opacity-50"
               />
             </label>
           </div>
@@ -142,6 +180,7 @@ export function ProductDetailPage() {
               type="number"
               value={form.tax_pct ?? ""}
               onChange={(e) => setForm({ ...form, tax_pct: e.target.value })}
+              disabled={!isAdmin}
             />
             <div className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-ink-muted">Subscription</span>
@@ -151,6 +190,7 @@ export function ProductDetailPage() {
                     type="radio"
                     checked={form.is_subscription === true}
                     onChange={() => setForm({ ...form, is_subscription: true })}
+                    disabled={!isAdmin}
                   />
                   Yes
                 </label>
@@ -159,6 +199,7 @@ export function ProductDetailPage() {
                     type="radio"
                     checked={!form.is_subscription}
                     onChange={() => setForm({ ...form, is_subscription: false, recurring_interval: null })}
+                    disabled={!isAdmin}
                   />
                   No
                 </label>
@@ -170,6 +211,7 @@ export function ProductDetailPage() {
                 label="Recurring"
                 value={form.recurring_interval ?? "MONTHLY"}
                 onChange={(e) => setForm({ ...form, recurring_interval: e.target.value })}
+                disabled={!isAdmin}
               >
                 {RECURRING_OPTIONS.map((o) => (
                   <option key={o} value={o}>
@@ -207,36 +249,38 @@ export function ProductDetailPage() {
         ) : (
           <EmptyState message="No variants yet." />
         )}
-        <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
-          <Input
-            id="v-attr"
-            label="Attribute"
-            placeholder="Color"
-            value={variantForm.attribute_name}
-            onChange={(e) => setVariantForm({ ...variantForm, attribute_name: e.target.value })}
-          />
-          <Input
-            id="v-value"
-            label="Value"
-            placeholder="Blue"
-            value={variantForm.value}
-            onChange={(e) => setVariantForm({ ...variantForm, value: e.target.value })}
-          />
-          <Input
-            id="v-delta"
-            label="Extra price"
-            type="number"
-            value={variantForm.price_delta}
-            onChange={(e) => setVariantForm({ ...variantForm, price_delta: e.target.value })}
-          />
-          <Button
-            variant="secondary"
-            onClick={() => addVariantMutation.mutate()}
-            disabled={!variantForm.attribute_name || !variantForm.value || addVariantMutation.isPending}
-          >
-            Add variant
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
+            <Input
+              id="v-attr"
+              label="Attribute"
+              placeholder="Color"
+              value={variantForm.attribute_name}
+              onChange={(e) => setVariantForm({ ...variantForm, attribute_name: e.target.value })}
+            />
+            <Input
+              id="v-value"
+              label="Value"
+              placeholder="Blue"
+              value={variantForm.value}
+              onChange={(e) => setVariantForm({ ...variantForm, value: e.target.value })}
+            />
+            <Input
+              id="v-delta"
+              label="Extra price"
+              type="number"
+              value={variantForm.price_delta}
+              onChange={(e) => setVariantForm({ ...variantForm, price_delta: e.target.value })}
+            />
+            <Button
+              variant="secondary"
+              onClick={() => addVariantMutation.mutate()}
+              disabled={!variantForm.attribute_name || !variantForm.value || addVariantMutation.isPending}
+            >
+              Add variant
+            </Button>
+          </div>
+        )}
       </Section>
 
       <Section title="Pricelists">

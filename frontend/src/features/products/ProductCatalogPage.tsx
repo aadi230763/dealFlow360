@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
+import { useAuth } from "@/context/AuthContext";
 import type { Category, CustomerTier, Product } from "@/api/types";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -22,6 +23,10 @@ export function ProductCatalogPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Matches the backend's require_role(ADMIN) on POST/PUT/DELETE /products -- hide the
+  // controls for roles that would just get a 403 back.
+  const isAdmin = user?.role === "ADMIN";
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["products"],
@@ -88,7 +93,7 @@ export function ProductCatalogPage() {
         title="Product catalog"
         actions={
           <>
-            <Button onClick={() => setNewProductOpen(true)}>+ New Product</Button>
+            {isAdmin && <Button onClick={() => setNewProductOpen(true)}>+ New Product</Button>}
             <Button variant="secondary" onClick={() => setManageOpen(true)}>
               Manage Price fields
             </Button>
