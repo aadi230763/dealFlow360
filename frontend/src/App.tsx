@@ -3,8 +3,9 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { SignupPage } from "@/features/auth/SignupPage";
 import { AppShell } from "@/features/shell/AppShell";
 import { ProtectedRoute } from "@/features/shell/ProtectedRoute";
-import { Placeholder } from "@/features/shell/Placeholder";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { DealHealthPage } from "@/features/dashboard/DealHealthPage";
+import { ReportsPage } from "@/features/dashboard/ReportsPage";
 import { QuotationListPage } from "@/features/quotations/QuotationListPage";
 import { QuotationBuilderPage } from "@/features/quotations/QuotationBuilderPage";
 import { ApprovalsListPage } from "@/features/quotations/ApprovalsListPage";
@@ -58,14 +59,8 @@ export function App() {
           <Route path="/subscriptions/:id" element={<BillingDetailPage />} />
           <Route path="/invoices" element={<InvoicesListPage />} />
           <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-          <Route
-            path="/deal-health"
-            element={<Placeholder title="Deal Health" message="Anomaly detection arrives in Phase 8." />}
-          />
-          <Route
-            path="/reports"
-            element={<Placeholder title="Reports" message="Reporting arrives in Phase 8." />}
-          />
+          <Route path="/deal-health" element={<DealHealthPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
         </Route>
       </Route>
 

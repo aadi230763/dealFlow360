@@ -12,6 +12,7 @@ from app.models.approval_rule import ApprovalRule
 from app.models.base import Base, SessionLocal, engine
 from app.models.catalog import Category, Product
 from app.models.customer import Customer, CustomerTier
+from app.models.fulfillment import Fulfillment, FulfillmentAllocation, FulfillmentStatus
 from app.models.pairing import ProductPairing
 from app.models.pricing_config import CategoryTierCeiling
 from app.models.quotation import LineType, Quotation, QuotationLine, QuotationStatus
@@ -110,6 +111,7 @@ SYSTEM_SETTINGS = {
     "fulfillment_base_shipment_cost": 10,
     "invoice_due_days": 15,
     "portal_token_expires_days": 14,
+    "fulfillment_promise_days": 5,
 }
 
 NON_TERMINAL_STATUSES = [
@@ -255,6 +257,46 @@ def _seed_historical_quotations(
                 )
             )
         db.flush()
+
+
+def _seed_delivery_slippage_demo(db) -> None:
+    """Backdates 2 fulfillments with an open backorder past the promise window, so the
+    Delivery Slippage panel (Phase 8) has something to show without waiting for real time
+    to pass. Picks from quotations that already have lines and aren't terminal-lost."""
+    candidates = (
+        db.query(Quotation)
+        .filter(Quotation.status.in_([QuotationStatus.CONFIRMED, QuotationStatus.FULFILLING, QuotationStatus.APPROVED]))
+        .order_by(Quotation.created_at)
+        .limit(2)
+        .all()
+    )
+    for quotation in candidates:
+        if not quotation.lines:
+            continue
+        line = quotation.lines[0]
+        backdated = quotation.created_at
+        fulfillment = Fulfillment(
+            id=uuid.uuid4(),
+            quotation_id=quotation.id,
+            status=FulfillmentStatus.PLANNED,
+            total_shipments=1,
+            estimated_cost=Decimal("10"),
+            is_manual_override=False,
+            created_at=backdated,
+        )
+        db.add(fulfillment)
+        db.flush()
+        db.add(
+            FulfillmentAllocation(
+                id=uuid.uuid4(),
+                fulfillment_id=fulfillment.id,
+                quotation_line_id=line.id,
+                warehouse_id=None,
+                qty=max(1, line.qty // 2),
+                is_backorder=True,
+            )
+        )
+    db.flush()
 
 
 def seed() -> None:
@@ -464,6 +506,12 @@ def seed() -> None:
         # Historical quotations: only seed once, so re-running never inflates the pipeline.
         if db.query(Quotation).count() == 0:
             _seed_historical_quotations(db, product_by_sku, category_by_name, tier_by_name, customer_by_email)
+            db.flush()
+
+        # Independent of the quotation guard above, so it still backfills on a DB that already
+        # had quotations seeded before this demo data existed.
+        if db.query(Fulfillment).count() == 0:
+            _seed_delivery_slippage_demo(db)
 
         db.commit()
         print("Seed complete. Password for all internal accounts:", SEED_PASSWORD)

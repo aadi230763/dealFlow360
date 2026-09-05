@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { api, ApiError } from "@/api/client";
+import { api, ApiError, getToken } from "@/api/client";
 import type { Customer, Product, Quotation, RiskResult, SendQuotationOut } from "@/api/types";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
@@ -81,6 +81,20 @@ export function QuotationDetailView({ quotation }: { quotation: Quotation }) {
   const productName = (id: string) => products?.find((p) => p.id === id)?.name ?? "—";
   const wentThroughRouting = quotation.status !== "DRAFT";
 
+  const downloadPdf = () => {
+    const token = getToken();
+    fetch(`/api/quotations/${quotation.id}/pdf`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((res) => res.blob())
+      .then((blob) => {
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = `${quotation.number}.pdf`;
+        a.click();
+        URL.revokeObjectURL(href);
+      });
+  };
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -114,6 +128,9 @@ export function QuotationDetailView({ quotation }: { quotation: Quotation }) {
           )}
           <Button variant="secondary" onClick={() => recomputeMutation.mutate()} disabled={recomputeMutation.isPending}>
             {recomputeMutation.isPending ? "Recomputing…" : "Recompute"}
+          </Button>
+          <Button variant="secondary" onClick={downloadPdf}>
+            Download PDF
           </Button>
         </div>
       </div>

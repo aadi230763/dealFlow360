@@ -12,6 +12,7 @@ from app.api import (
     categories,
     ceilings,
     customers,
+    dashboard,
     events,
     fulfillment,
     health,
@@ -81,5 +82,6 @@ app.include_router(approvals.router)
 app.include_router(fulfillment.router)
 app.include_router(billing.router)
 app.include_router(portal.router)
+app.include_router(dashboard.router)
 app.include_router(events.router)
 app.include_router(audit.router)

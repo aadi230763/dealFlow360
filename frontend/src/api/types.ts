@@ -535,3 +535,78 @@ export interface NegotiationRequestOut {
   responder_name: string | null;
   response_message: string | null;
 }
+
+// Phase 8 -- deal health, anomalies and reporting.
+export interface StalledDealOut {
+  quotation_id: string;
+  number: string;
+  customer_name: string;
+  owner_name: string;
+  idle_days: number;
+  value_at_risk: string;
+  flagged_at: string;
+  last_action: string | null;
+}
+
+export interface DiscountAnomalyOut {
+  quotation_id: string;
+  number: string;
+  customer_name: string;
+  rep_id: string;
+  rep_name: string;
+  discount_pct: string;
+  baseline_pct: string;
+  z_score: string | null;
+  method: "zscore" | "fixed_delta";
+  flagged_at: string;
+  last_action: string | null;
+}
+
+export interface DeliverySlippageOut {
+  fulfillment_id: string;
+  quotation_id: string;
+  number: string;
+  customer_name: string;
+  days_late: number;
+  backorder_qty: number;
+  flagged_at: string;
+  last_action: string | null;
+}
+
+export interface DashboardHealthOut {
+  stalled: StalledDealOut[];
+  anomalies: DiscountAnomalyOut[];
+  slippage: DeliverySlippageOut[];
+}
+
+export interface RepDiscountPoint {
+  rep_name: string;
+  discount_pct: string;
+  is_outlier: boolean;
+}
+
+export interface MarginTrendPoint {
+  period: string;
+  margin_pct: string;
+}
+
+export interface DashboardMetricsOut {
+  quotes_created: number;
+  avg_approval_time_hours: string | null;
+  top_upsold_product: string | null;
+  win_rate_pct: string;
+  discount_by_rep: RepDiscountPoint[];
+  margin_trend: MarginTrendPoint[];
+}
+
+export interface ReportOut {
+  quotes_created: number;
+  avg_approval_time_hours: string | null;
+  top_upsold_product: string | null;
+  total_pipeline_value: string;
+}
+
+export interface NudgeActionOut {
+  quotation_id: string;
+  action: "nudge" | "escalate";
+}
