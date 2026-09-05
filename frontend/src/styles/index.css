@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Cool neutral base — slate/graphite */
+  --color-canvas: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-border: #d7dbe1;
+  --color-ink: #1c2128;
+  --color-ink-muted: #5c6470;
+
+  /* One muted accent for interactive affordances */
+  --color-accent: #2f5d8c;
+
+  /* Signal colors: healthy vs risk escalation */
+  --color-healthy: #1a7f5a;
+  --color-risk: #b3391f;
+  --color-risk-bg: #fbe9e5;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: "Inter", system-ui, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
