@@ -6,17 +6,17 @@ export interface StepperStep {
 }
 
 const DOT_CLASS: Record<StepState, string> = {
-  completed: "bg-healthy border-healthy text-white",
-  active: "bg-accent border-accent text-white",
+  completed: "bg-success border-success text-white",
+  active: "bg-primary border-primary text-white",
   pending: "bg-surface border-border text-ink-muted",
-  failed: "bg-risk border-risk text-white",
+  failed: "bg-danger border-danger text-white",
 };
 
 const LABEL_CLASS: Record<StepState, string> = {
   completed: "text-ink",
   active: "text-ink font-semibold",
   pending: "text-ink-muted",
-  failed: "text-risk font-semibold",
+  failed: "text-danger font-semibold",
 };
 
 export function Stepper({ steps }: { steps: StepperStep[] }) {
@@ -24,9 +24,9 @@ export function Stepper({ steps }: { steps: StepperStep[] }) {
     <div className="flex items-center">
       {steps.map((step, i) => (
         <div key={i} className="flex flex-1 items-center last:flex-none">
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-1.5">
             <div
-              className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-semibold ${DOT_CLASS[step.state]}`}
+              className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors duration-150 ${DOT_CLASS[step.state]}`}
             >
               {step.state === "completed" ? "✓" : i + 1}
             </div>
@@ -34,8 +34,8 @@ export function Stepper({ steps }: { steps: StepperStep[] }) {
           </div>
           {i < steps.length - 1 && (
             <div
-              className={`mx-2 h-0.5 flex-1 ${
-                step.state === "completed" ? "bg-healthy" : "bg-border"
+              className={`mx-2 h-0.5 flex-1 transition-colors duration-150 ${
+                step.state === "completed" ? "bg-success" : "bg-border"
               }`}
             />
           )}

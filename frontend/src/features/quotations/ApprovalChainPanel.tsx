@@ -4,6 +4,7 @@ import { api, ApiError } from "@/api/client";
 import type { ApprovalRequestOut } from "@/api/types";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
 import { Modal } from "@/components/Modal";
 import { Stepper, type StepState } from "@/components/Stepper";
 import { useToast } from "@/components/Toast";
@@ -86,9 +87,9 @@ export function ApprovalChainPanel({
         {[...steps]
           .sort((a, b) => a.sequence - b.sequence)
           .map((step) => (
-            <div key={step.id} className="rounded-sm border border-border p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{step.required_role.replace("_", " ")}</span>
+            <Card key={step.id} padding="sm">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-ink">{step.required_role.replace("_", " ")}</span>
                 <span className="text-xs text-ink-muted">{step.status}</span>
               </div>
               {step.acted_by_name && (
@@ -97,22 +98,22 @@ export function ApprovalChainPanel({
                 </p>
               )}
               {step.comment && <p className="mt-1 text-xs text-ink-muted">"{step.comment}"</p>}
-            </div>
+            </Card>
           ))}
       </div>
 
       {canAct && currentStep && (
         <div className="flex gap-2 border-t border-border pt-3">
           <Button
+            variant="success"
             onClick={() => actMutation.mutate({ id: currentStep.id, action: "approve" })}
             disabled={actMutation.isPending}
-            className="bg-healthy border-healthy hover:opacity-90"
           >
             Approve
           </Button>
           <Button
+            variant="warning"
             onClick={() => setCommentModal({ id: currentStep.id, action: "return_for_revision" })}
-            className="border-amber-500 bg-amber-500 text-white hover:opacity-90"
           >
             Return for Revision
           </Button>
@@ -132,7 +133,7 @@ export function ApprovalChainPanel({
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="Comment (required)"
-            className="min-h-[80px] rounded-sm border border-border bg-surface px-2.5 py-1.5 text-sm"
+            className="min-h-[80px] rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setCommentModal(null)}>

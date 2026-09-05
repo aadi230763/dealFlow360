@@ -9,6 +9,9 @@ import { Select } from "@/components/Select";
 import { Modal } from "@/components/Modal";
 import { Table, TableHead, Th, Td } from "@/components/Table";
 import { Badge } from "@/components/Badge";
+import { Card } from "@/components/Card";
+import { PageHeader } from "@/components/PageHeader";
+import { Callout } from "@/components/Callout";
 import { Money } from "@/components/Money";
 import { Percent } from "@/components/Percent";
 import { EmptyState } from "@/components/EmptyState";
@@ -80,83 +83,81 @@ export function ProductCatalogPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Product catalog</h1>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setNewProductOpen(true)}>+ New Product</Button>
-          <Button variant="secondary" onClick={() => setManageOpen(true)}>
-            Manage Price fields
-          </Button>
-          <Link to="/products/discount-config">
-            <Button variant="secondary">Discount & Approval Config</Button>
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Product catalog"
+        actions={
+          <>
+            <Button onClick={() => setNewProductOpen(true)}>+ New Product</Button>
+            <Button variant="secondary" onClick={() => setManageOpen(true)}>
+              Manage Price fields
+            </Button>
+            <Link to="/products/discount-config">
+              <Button variant="secondary">Discount &amp; Approval Config</Button>
+            </Link>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-sm border border-border bg-surface p-4">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card interactive>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Total Products</p>
-          <p className="text-2xl font-semibold tabular-nums">{kpis.active + kpis.archived}</p>
+          <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">{kpis.active + kpis.archived}</p>
           <p className="text-xs text-ink-muted">
             {kpis.active} active / {kpis.archived} archived
           </p>
-        </div>
-        <div className="rounded-sm border border-border bg-surface p-4">
+        </Card>
+        <Card interactive>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Pricelists</p>
-          <p className="text-2xl font-semibold tabular-nums">{kpis.tierCount}</p>
+          <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">{kpis.tierCount}</p>
           <p className="text-xs text-ink-muted">tiers, INR</p>
-        </div>
-        <div className="rounded-sm border border-border bg-surface p-4">
+        </Card>
+        <Card interactive>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">SKUs</p>
-          <p className="text-2xl font-semibold tabular-nums">{kpis.skus}</p>
+          <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">{kpis.skus}</p>
           <p className="text-xs text-ink-muted">across all products</p>
-        </div>
+        </Card>
       </div>
 
       {isLoading ? null : products && products.length > 0 ? (
         <>
-          <Table>
-            <TableHead>
-              <Th>Product name</Th>
-              <Th>Category</Th>
-              <Th>Variants</Th>
-              <Th>Price</Th>
-              <Th>Unit</Th>
-              <Th>Tax</Th>
-              <Th>Status</Th>
-            </TableHead>
-            {products.map((p) => (
-              <tr key={p.id} className="cursor-pointer hover:bg-canvas" onClick={() => navigate(`/products/${p.id}`)}>
-                <Td className="font-medium">
-                  <Link to={`/products/${p.id}`} className="text-accent hover:underline">
-                    {p.name}
-                  </Link>
-                </Td>
-                <Td>{categoryName(p.category_id)}</Td>
-                <Td className="tabular-nums">{p.variants.length}</Td>
-                <Td className="tabular-nums">
-                  <Money value={Number(p.list_price)} />
-                </Td>
-                <Td>{p.unit}</Td>
-                <Td>
-                  <Percent value={Number(p.tax_pct)} />
-                </Td>
-                <Td>
-                  {p.is_active ? <Badge tone="healthy">Active</Badge> : <Badge>Archived</Badge>}
-                  {p.is_promoted && (
-                    <Badge tone="accent">
-                      <span className="ml-1">Promoted</span>
-                    </Badge>
-                  )}
-                </Td>
-              </tr>
-            ))}
-          </Table>
-          <p className="rounded-sm border border-yellow-300/50 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
-            Click a product row to open general info, variants and recurring price lists.
-          </p>
+          <Card padding="none" className="overflow-x-auto">
+            <Table>
+              <TableHead>
+                <Th>Product name</Th>
+                <Th>Category</Th>
+                <Th>Variants</Th>
+                <Th>Price</Th>
+                <Th>Unit</Th>
+                <Th>Tax</Th>
+                <Th>Status</Th>
+              </TableHead>
+              {products.map((p) => (
+                <tr key={p.id} className="cursor-pointer" onClick={() => navigate(`/products/${p.id}`)}>
+                  <Td className="font-medium">
+                    <Link to={`/products/${p.id}`} className="text-primary hover:underline">
+                      {p.name}
+                    </Link>
+                  </Td>
+                  <Td>{categoryName(p.category_id)}</Td>
+                  <Td className="tabular-nums">{p.variants.length}</Td>
+                  <Td className="tabular-nums">
+                    <Money value={Number(p.list_price)} />
+                  </Td>
+                  <Td>{p.unit}</Td>
+                  <Td>
+                    <Percent value={Number(p.tax_pct)} />
+                  </Td>
+                  <Td>
+                    <div className="flex gap-1">
+                      {p.is_active ? <Badge tone="healthy">Active</Badge> : <Badge>Archived</Badge>}
+                      {p.is_promoted && <Badge tone="accent">Promoted</Badge>}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+            </Table>
+          </Card>
+          <Callout tone="warning">Click a product row to open general info, variants and recurring price lists.</Callout>
         </>
       ) : (
         <EmptyState message="No products yet. Add one to get started." />

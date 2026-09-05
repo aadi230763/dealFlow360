@@ -4,6 +4,9 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import type { AuditEventOut, QuotationListItem, SystemSetting } from "@/api/types";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { PageHeader } from "@/components/PageHeader";
+import { SkeletonText } from "@/components/Skeleton";
 import { daysSince, TERMINAL_STATUSES } from "@/features/quotations/statusUtils";
 
 function describeEvent(event: AuditEventOut): string {
@@ -59,27 +62,24 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">Sales Dashboard</h1>
-        <p className="text-sm text-ink-muted">Central hub, links out to every module below.</p>
-      </div>
+      <PageHeader title="Sales Dashboard" description="Central hub, links out to every module below." />
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-sm border border-border bg-surface p-4">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card interactive>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Pending Approvals</p>
-          <p className="text-2xl font-semibold tabular-nums">{kpis.pending}</p>
+          <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">{kpis.pending}</p>
           <p className="text-xs text-ink-muted">quotations waiting</p>
-        </div>
-        <div className="rounded-sm border border-border bg-surface p-4">
+        </Card>
+        <Card interactive>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Open Quotations</p>
-          <p className="text-2xl font-semibold tabular-nums">{kpis.open}</p>
+          <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">{kpis.open}</p>
           <p className="text-xs text-ink-muted">active deals</p>
-        </div>
-        <div className="rounded-sm border border-border bg-surface p-4">
+        </Card>
+        <Card interactive>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">At-Risk Deals</p>
-          <p className="text-2xl font-semibold tabular-nums text-risk">{kpis.atRisk}</p>
+          <p className="mt-1.5 text-2xl font-semibold tabular-nums text-danger">{kpis.atRisk}</p>
           <p className="text-xs text-ink-muted">flagged by Deal Health</p>
-        </div>
+        </Card>
       </div>
 
       <div className="flex gap-2">
@@ -93,19 +93,25 @@ export function DashboardPage() {
 
       <div>
         <h2 className="mb-2 text-sm font-semibold text-ink-muted">Recent Activity</h2>
-        <div className="flex flex-col divide-y divide-border rounded-sm border border-border bg-surface">
-          {(activity ?? []).map((event) => (
-            <div key={event.id} className="flex items-center justify-between px-3 py-2 text-sm">
-              <span>{describeEvent(event)}</span>
-              <span className="text-xs tabular-nums text-ink-muted">
-                {new Date(event.created_at).toLocaleString()}
-              </span>
+        <Card padding="none">
+          {!activity ? (
+            <div className="p-4">
+              <SkeletonText lines={4} />
             </div>
-          ))}
-          {(!activity || activity.length === 0) && (
-            <p className="px-3 py-4 text-sm text-ink-muted">No activity yet.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-border">
+              {activity.map((event) => (
+                <div key={event.id} className="flex items-center justify-between px-3.5 py-2.5 text-sm">
+                  <span className="text-ink">{describeEvent(event)}</span>
+                  <span className="tabular-nums text-xs text-ink-muted">
+                    {new Date(event.created_at).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+              {activity.length === 0 && <p className="px-3.5 py-4 text-sm text-ink-muted">No activity yet.</p>}
+            </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

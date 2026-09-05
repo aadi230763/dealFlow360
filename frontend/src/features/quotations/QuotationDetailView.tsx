@@ -4,6 +4,8 @@ import { api, ApiError } from "@/api/client";
 import type { Customer, Product, Quotation, RiskResult } from "@/api/types";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Callout } from "@/components/Callout";
 import { Money } from "@/components/Money";
 import { Percent } from "@/components/Percent";
 import { Table, TableHead, Th, Td } from "@/components/Table";
@@ -53,9 +55,9 @@ export function QuotationDetailView({ quotation }: { quotation: Quotation }) {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Quotation {quotation.number}</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-ink">Quotation {quotation.number}</h1>
           <p className="text-sm text-ink-muted">{customer?.name ?? "—"}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -71,7 +73,7 @@ export function QuotationDetailView({ quotation }: { quotation: Quotation }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-sm border border-border bg-surface">
+      <Card padding="none" className="overflow-x-auto">
         <Table>
           <TableHead>
             <Th>Product</Th>
@@ -96,43 +98,43 @@ export function QuotationDetailView({ quotation }: { quotation: Quotation }) {
                 <Td className="tabular-nums">{line.computed.ceiling_pct ? `${line.computed.ceiling_pct}%` : "—"}</Td>
                 <Td>
                   {overage > 0 ? (
-                    <span className="font-medium text-risk">OVER (+{overage.toFixed(1)}pt)</span>
+                    <span className="font-medium text-danger">OVER (+{overage.toFixed(1)}pt)</span>
                   ) : (
-                    <span className="font-medium text-healthy">OK</span>
+                    <span className="font-medium text-success">OK</span>
                   )}
                 </Td>
               </tr>
             );
           })}
         </Table>
-      </div>
-      <p className="rounded-sm border border-yellow-300/50 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+      </Card>
+      <Callout tone="warning">
         Discount is checked against each line's own limit, as soon as it is entered, not only at submit
         time.
-      </p>
+      </Callout>
 
-      <dl className="grid grid-cols-4 gap-3 rounded-sm border border-border bg-surface p-4 text-sm">
+      <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 shadow-card sm:grid-cols-4">
         <div>
-          <dt className="text-ink-muted">Subtotal</dt>
-          <dd className="tabular-nums font-medium">
+          <dt className="text-xs text-ink-muted">Subtotal</dt>
+          <dd className="tabular-nums font-medium text-ink">
             <Money value={Number(quotation.subtotal)} />
           </dd>
         </div>
         <div>
-          <dt className="text-ink-muted">Discount</dt>
-          <dd className="tabular-nums font-medium">
+          <dt className="text-xs text-ink-muted">Discount</dt>
+          <dd className="tabular-nums font-medium text-ink">
             <Money value={Number(quotation.discount_total)} />
           </dd>
         </div>
         <div>
-          <dt className="text-ink-muted">Tax</dt>
-          <dd className="tabular-nums font-medium">
+          <dt className="text-xs text-ink-muted">Tax</dt>
+          <dd className="tabular-nums font-medium text-ink">
             <Money value={Number(quotation.tax_total)} />
           </dd>
         </div>
         <div>
-          <dt className="text-ink-muted">Total</dt>
-          <dd className="tabular-nums font-semibold">
+          <dt className="text-xs text-ink-muted">Total</dt>
+          <dd className="tabular-nums font-semibold text-ink">
             <Money value={Number(quotation.grand_total)} />
           </dd>
         </div>

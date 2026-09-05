@@ -30,7 +30,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold tracking-tight">System settings</h1>
+      <h1 className="text-lg font-semibold tracking-tight text-ink">System settings</h1>
 
       {isLoading ? null : settings && settings.length > 0 ? (
         <Table>
@@ -51,7 +51,7 @@ export function SettingsPage() {
                     const value = raw !== "" && !Number.isNaN(numeric) ? numeric : raw;
                     updateMutation.mutate({ key: s.key, value });
                   }}
-                  className="w-40 rounded-sm border border-border bg-surface px-2 py-1 text-sm tabular-nums"
+                  className="w-40 rounded-md border border-border bg-surface px-2 py-1 text-sm tabular-nums text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
                 />
               </Td>
             </tr>

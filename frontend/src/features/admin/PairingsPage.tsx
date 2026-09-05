@@ -54,10 +54,12 @@ export function PairingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold tracking-tight">Product pairings</h1>
-      <p className="text-sm text-ink-muted">
-        Upsell suggestions ranked by co-purchase score, filtered by a minimum margin floor.
-      </p>
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight text-ink">Product pairings</h1>
+        <p className="text-sm text-ink-muted">
+          Upsell suggestions ranked by co-purchase score, filtered by a minimum margin floor.
+        </p>
+      </div>
 
       {isLoading ? null : pairings && pairings.length > 0 ? (
         <Table>

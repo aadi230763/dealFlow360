@@ -14,6 +14,8 @@ import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
 import { Input } from "@/components/Input";
 import { Money } from "@/components/Money";
+import { Card } from "@/components/Card";
+import { Callout } from "@/components/Callout";
 import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/components/Toast";
 import { RiskMeter } from "./RiskMeter";
@@ -182,11 +184,11 @@ export function QuotationBuilderPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <h1 className="text-lg font-semibold tracking-tight">
+      <h1 className="text-xl font-semibold tracking-tight text-ink">
         {isEditing ? `Quotation ${existing?.number ?? ""}` : "New quotation"}
       </h1>
 
-      <div className="flex items-end gap-2">
+      <div className="flex flex-wrap items-end gap-2">
         <Select
           id="qb-customer"
           label="Customer"
@@ -208,7 +210,7 @@ export function QuotationBuilderPage() {
         </Select>
       </div>
 
-      <div className="flex items-end gap-2 rounded-sm border border-border bg-surface p-3">
+      <Card padding="sm" className="flex items-end gap-2">
         <Select
           id="qb-add-product"
           label="Add a product"
@@ -228,22 +230,22 @@ export function QuotationBuilderPage() {
             </optgroup>
           ))}
         </Select>
-      </div>
+      </Card>
 
       {lines.length === 0 ? (
         <EmptyState message="No lines yet. Add a product above to start pricing." />
       ) : (
-        <div className="overflow-x-auto rounded-sm border border-border bg-surface">
+        <Card padding="none" className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                <th className="px-3 py-2">Product</th>
-                <th className="px-3 py-2">Qty</th>
-                <th className="px-3 py-2">Price</th>
-                <th className="px-3 py-2">Discount</th>
-                <th className="px-3 py-2">Limit</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2" />
+                <th className="px-3 py-2.5">Product</th>
+                <th className="px-3 py-2.5">Qty</th>
+                <th className="px-3 py-2.5">Price</th>
+                <th className="px-3 py-2.5">Discount</th>
+                <th className="px-3 py-2.5">Limit</th>
+                <th className="px-3 py-2.5">Status</th>
+                <th className="px-3 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -252,51 +254,51 @@ export function QuotationBuilderPage() {
                 const priced = pricing?.lines[index];
                 const overage = priced ? Number(priced.overage_pct) : 0;
                 return (
-                  <tr key={index} className="border-b border-border last:border-0">
-                    <td className="px-3 py-2 font-medium">{product?.name ?? "—"}</td>
-                    <td className="px-3 py-2">
+                  <tr key={index} className="border-b border-border transition-colors duration-150 last:border-0 hover:bg-canvas">
+                    <td className="px-3 py-2.5 font-medium text-ink">{product?.name ?? "—"}</td>
+                    <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => updateLine(index, { qty: Math.max(1, line.qty - 1) })}
-                          className="rounded-sm border border-border px-1.5 text-ink-muted hover:text-ink"
+                          className="rounded-md border border-border px-1.5 text-ink-muted transition-colors hover:bg-surface hover:text-ink"
                         >
                           −
                         </button>
-                        <span className="w-8 text-center tabular-nums">{line.qty}</span>
+                        <span className="w-8 text-center tabular-nums text-ink">{line.qty}</span>
                         <button
                           onClick={() => updateLine(index, { qty: line.qty + 1 })}
-                          className="rounded-sm border border-border px-1.5 text-ink-muted hover:text-ink"
+                          className="rounded-md border border-border px-1.5 text-ink-muted transition-colors hover:bg-surface hover:text-ink"
                         >
                           +
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2 tabular-nums">
+                    <td className="px-3 py-2.5 tabular-nums text-ink">
                       {product ? <Money value={Number(product.list_price)} /> : "—"}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2.5">
                       <input
                         type="number"
                         step="0.1"
                         value={line.discount_pct}
                         onChange={(e) => updateLine(index, { discount_pct: Number(e.target.value) })}
-                        className="w-20 rounded-sm border border-border bg-surface px-2 py-1 tabular-nums"
+                        className="w-20 rounded-md border border-border bg-surface px-2 py-1 tabular-nums text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
                       />
                     </td>
-                    <td className="px-3 py-2 tabular-nums">{priced ? `${priced.ceiling_pct}%` : "—"}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2.5 tabular-nums text-ink-muted">{priced ? `${priced.ceiling_pct}%` : "—"}</td>
+                    <td className="px-3 py-2.5">
                       {!priced ? (
                         "—"
                       ) : overage > 0 ? (
-                        <span className="font-medium text-risk">OVER (+{overage.toFixed(1)}pt)</span>
+                        <span className="font-medium text-danger">OVER (+{overage.toFixed(1)}pt)</span>
                       ) : (
-                        <span className="font-medium text-healthy">OK</span>
+                        <span className="font-medium text-success">OK</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2.5">
                       <button
                         onClick={() => removeLine(index)}
-                        className="text-ink-muted hover:text-risk"
+                        className="text-ink-muted transition-colors hover:text-danger"
                         aria-label="Remove line"
                       >
                         ✕
@@ -307,12 +309,12 @@ export function QuotationBuilderPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
-      <p className="rounded-sm border border-yellow-300/50 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+      <Callout tone="warning">
         Discount is checked against each line's own limit, as soon as it is entered, not only at submit
         time.
-      </p>
+      </Callout>
 
       {lines.length > 0 && (
         <div className="flex items-end gap-2 border-t border-border pt-3">
@@ -336,28 +338,28 @@ export function QuotationBuilderPage() {
         onAdd={addProduct}
       />
 
-      <dl className="grid grid-cols-4 gap-3 rounded-sm border border-border bg-surface p-4 text-sm">
+      <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 shadow-card sm:grid-cols-4">
         <div>
-          <dt className="text-ink-muted">Subtotal</dt>
-          <dd className="tabular-nums font-medium">
+          <dt className="text-xs text-ink-muted">Subtotal</dt>
+          <dd className="tabular-nums font-medium text-ink">
             <Money value={pricing ? Number(pricing.subtotal) : 0} />
           </dd>
         </div>
         <div>
-          <dt className="text-ink-muted">Discount</dt>
-          <dd className="tabular-nums font-medium">
+          <dt className="text-xs text-ink-muted">Discount</dt>
+          <dd className="tabular-nums font-medium text-ink">
             <Money value={pricing ? Number(pricing.discount_total) : 0} />
           </dd>
         </div>
         <div>
-          <dt className="text-ink-muted">Tax</dt>
-          <dd className="tabular-nums font-medium">
+          <dt className="text-xs text-ink-muted">Tax</dt>
+          <dd className="tabular-nums font-medium text-ink">
             <Money value={pricing ? Number(pricing.tax_total) : 0} />
           </dd>
         </div>
         <div>
-          <dt className="text-ink-muted">Total</dt>
-          <dd className="tabular-nums font-semibold transition-all duration-300">
+          <dt className="text-xs text-ink-muted">Total</dt>
+          <dd className="tabular-nums font-semibold text-ink transition-all duration-300">
             <Money value={pricing ? Number(pricing.grand_total) : 0} />
           </dd>
         </div>

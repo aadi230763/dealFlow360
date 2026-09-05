@@ -9,7 +9,11 @@ import { Money } from "@/components/Money";
 import { Percent } from "@/components/Percent";
 import { Select } from "@/components/Select";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
+import { Callout } from "@/components/Callout";
+import { SkeletonText } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
 import {
   STATUS_LABELS,
@@ -99,29 +103,27 @@ export function QuotationListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Quotations</h1>
-          <p className="text-sm text-ink-muted">
-            Every quotation in the system, one row per quotation, click a row to open it.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link to="/quotations/new">
-            <Button>+ New Quotation</Button>
-          </Link>
-          <Button variant="secondary" onClick={() => setView(view === "kanban" ? "table" : "kanban")}>
-            {view === "kanban" ? "Switch to Table View" : "Switch to Kanban"}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Quotations"
+        description="Every quotation in the system, one row per quotation, click a row to open it."
+        actions={
+          <>
+            <Link to="/quotations/new">
+              <Button>+ New Quotation</Button>
+            </Link>
+            <Button variant="secondary" onClick={() => setView(view === "kanban" ? "table" : "kanban")}>
+              {view === "kanban" ? "Switch to Table View" : "Switch to Kanban"}
+            </Button>
+          </>
+        }
+      />
 
       {isLoading ? (
-        <p className="text-sm text-ink-muted">Loading…</p>
+        <SkeletonText lines={5} />
       ) : isError ? (
-        <p className="rounded-sm border border-risk/30 bg-risk-bg px-3 py-2 text-sm text-risk">
+        <Callout tone="danger">
           Couldn't load quotations: {error instanceof ApiError ? `${error.status} ${error.detail}` : String(error)}
-        </p>
+        </Callout>
       ) : (quotations ?? []).length === 0 ? (
         <EmptyState message="No quotations yet. Create one to see approval routing in action." />
       ) : view === "kanban" ? (
@@ -133,7 +135,7 @@ export function QuotationListPage() {
                 key={status}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => onDrop(e, status)}
-                className="flex w-64 shrink-0 flex-col gap-2 rounded-sm border border-border bg-surface p-2"
+                className="flex w-64 shrink-0 flex-col gap-2 rounded-lg border border-border bg-canvas p-2"
               >
                 <div className="flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   <span>{KANBAN_LABELS[status]}</span>
@@ -148,17 +150,17 @@ export function QuotationListPage() {
                         key={q.id}
                         draggable
                         onDragStart={(e) => onDragStart(e, q.id)}
-                        className={`cursor-grab rounded-sm border bg-canvas p-2 text-sm active:cursor-grabbing ${
-                          stalled ? "border-risk" : "border-border"
+                        className={`hover-lift cursor-grab rounded-lg border bg-surface p-2.5 text-sm shadow-card active:cursor-grabbing ${
+                          stalled ? "border-danger/40" : "border-border"
                         }`}
                       >
-                        <Link to={`/quotations/${q.id}`} className="font-medium text-accent hover:underline">
+                        <Link to={`/quotations/${q.id}`} className="font-medium text-primary hover:underline">
                           {q.number}
                         </Link>
                         <p className="text-ink-muted">
                           {q.customer_name} — <Money value={Number(q.grand_total)} />
                         </p>
-                        <p className={`mt-1 text-xs ${stalled ? "text-risk" : "text-ink-muted"}`}>
+                        <p className={`mt-1 text-xs ${stalled ? "font-medium text-danger" : "text-ink-muted"}`}>
                           {idleDays}d idle
                         </p>
                       </div>
@@ -171,7 +173,7 @@ export function QuotationListPage() {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-end gap-2">
+          <Card padding="sm" className="flex flex-wrap items-end gap-2">
             <Select
               id="filter-status"
               label="Status"
@@ -198,63 +200,65 @@ export function QuotationListPage() {
                 </option>
               ))}
             </Select>
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-ink-muted">From</span>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="rounded-sm border border-border bg-surface px-2.5 py-1.5 text-sm"
+                className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
               />
             </label>
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-ink-muted">To</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="rounded-sm border border-border bg-surface px-2.5 py-1.5 text-sm"
+                className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
               />
             </label>
-          </div>
+          </Card>
 
           {filtered.length > 0 ? (
-            <Table>
-              <TableHead>
-                <Th>Number</Th>
-                <Th>Customer</Th>
-                <Th>Tier</Th>
-                <Th>Owner</Th>
-                <Th>Amount</Th>
-                <Th>Margin</Th>
-                <Th>Status</Th>
-                <Th>Age</Th>
-              </TableHead>
-              {filtered.map((q) => (
-                <tr key={q.id}>
-                  <Td>
-                    <Link to={`/quotations/${q.id}`} className="font-medium text-accent hover:underline">
-                      {q.number}
-                    </Link>
-                  </Td>
-                  <Td>{q.customer_name}</Td>
-                  <Td>
-                    <Badge tone="accent">{q.tier_name}</Badge>
-                  </Td>
-                  <Td>{q.owner_name}</Td>
-                  <Td className="tabular-nums">
-                    <Money value={Number(q.grand_total)} />
-                  </Td>
-                  <Td>
-                    <Percent value={Number(q.margin_pct)} />
-                  </Td>
-                  <Td>
-                    <Badge tone={statusTone(q.status)}>{STATUS_LABELS[q.status]}</Badge>
-                  </Td>
-                  <Td className="tabular-nums text-ink-muted">{daysSince(q.last_activity_at)}d</Td>
-                </tr>
-              ))}
-            </Table>
+            <Card padding="none" className="overflow-x-auto">
+              <Table>
+                <TableHead>
+                  <Th>Number</Th>
+                  <Th>Customer</Th>
+                  <Th>Tier</Th>
+                  <Th>Owner</Th>
+                  <Th>Amount</Th>
+                  <Th>Margin</Th>
+                  <Th>Status</Th>
+                  <Th>Age</Th>
+                </TableHead>
+                {filtered.map((q) => (
+                  <tr key={q.id}>
+                    <Td>
+                      <Link to={`/quotations/${q.id}`} className="font-medium text-primary hover:underline">
+                        {q.number}
+                      </Link>
+                    </Td>
+                    <Td>{q.customer_name}</Td>
+                    <Td>
+                      <Badge tone="accent">{q.tier_name}</Badge>
+                    </Td>
+                    <Td>{q.owner_name}</Td>
+                    <Td className="tabular-nums">
+                      <Money value={Number(q.grand_total)} />
+                    </Td>
+                    <Td>
+                      <Percent value={Number(q.margin_pct)} />
+                    </Td>
+                    <Td>
+                      <Badge tone={statusTone(q.status)}>{STATUS_LABELS[q.status]}</Badge>
+                    </Td>
+                    <Td className="tabular-nums text-ink-muted">{daysSince(q.last_activity_at)}d</Td>
+                  </tr>
+                ))}
+              </Table>
+            </Card>
           ) : (
             <EmptyState message="No quotations match these filters." />
           )}

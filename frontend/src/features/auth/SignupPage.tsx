@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
+import { Card } from "@/components/Card";
 import { ApiError } from "@/api/client";
 import type { Role } from "@/api/types";
 
@@ -38,47 +39,52 @@ export function SignupPage() {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-canvas">
-      <div className="w-full max-w-sm rounded-sm border border-border bg-surface p-6">
-        <h1 className="mb-1 text-lg font-semibold tracking-tight">Create account</h1>
-        <p className="mb-6 text-sm text-ink-muted">Internal users only.</p>
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <Input id="name" label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Input
-            id="email"
-            label="Email"
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <Input
-            id="password"
-            label="Password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-          />
-          <Select id="role" label="Role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r.replace("_", " ")}
-              </option>
-            ))}
-          </Select>
-          {error && <p className="text-xs text-risk">{error}</p>}
-          <Button type="submit" disabled={submitting} className="mt-2 w-full">
-            {submitting ? "Creating…" : "Create account"}
-          </Button>
-        </form>
-        <p className="mt-4 text-center text-xs text-ink-muted">
-          Already have an account? <Link to="/login" className="text-accent hover:underline">Sign in</Link>
-        </p>
-      </div>
+    <div className="flex h-screen items-center justify-center bg-background px-4">
+      <Card className="animate-fade-in-up w-full max-w-sm shadow-elevated" padding="none">
+        <div className="p-6">
+          <h1 className="mb-1 text-lg font-semibold tracking-tight text-ink">Create account</h1>
+          <p className="mb-6 text-sm text-ink-muted">Internal users only.</p>
+          <form onSubmit={onSubmit} className="flex flex-col gap-3">
+            <Input id="name" label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input
+              id="email"
+              label="Email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <Input
+              id="password"
+              label="Password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+            />
+            <Select id="role" label="Role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r.replace("_", " ")}
+                </option>
+              ))}
+            </Select>
+            {error && <p className="text-xs text-danger">{error}</p>}
+            <Button type="submit" disabled={submitting} className="mt-2 w-full">
+              {submitting ? "Creating…" : "Create account"}
+            </Button>
+          </form>
+          <p className="mt-4 text-center text-xs text-ink-muted">
+            Already have an account?{" "}
+            <Link to="/login" className="font-medium text-primary hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </Card>
     </div>
   );
 }

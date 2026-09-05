@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "@/api/client";
 import type { Customer, CustomerTier, Quotation, RiskResult } from "@/api/types";
 import { Badge } from "@/components/Badge";
+import { Card } from "@/components/Card";
+import { Callout } from "@/components/Callout";
 import { Table, TableHead, Th, Td } from "@/components/Table";
 import { AuditTrailPanel } from "./AuditTrailPanel";
 import { ApprovalChainPanel } from "./ApprovalChainPanel";
@@ -40,62 +42,66 @@ export function ApprovalDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Link to="/approvals" className="text-sm text-accent hover:underline">
+        <Link to="/approvals" className="text-sm text-primary hover:underline">
           ← Approvals
         </Link>
-        <h1 className="text-lg font-semibold tracking-tight">Approval Detail: {quotation.number}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">Approval Detail: {quotation.number}</h1>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Badge tone={riskBandTone(band)}>Blended Risk: {band}</Badge>
         <Badge tone="accent">Customer Tier: {tier?.name ?? "—"}</Badge>
       </div>
 
-      <section className="rounded-sm border border-border bg-surface p-4">
+      <Card>
         <h2 className="mb-1 text-sm font-semibold text-ink-muted">Why This Quote Was Flagged</h2>
-        <Table>
-          <TableHead>
-            <Th>Line</Th>
-            <Th>Discount Given</Th>
-            <Th>Limit Allowed</Th>
-            <Th>Over By</Th>
-            <Th>Weight</Th>
-            <Th>Contribution</Th>
-          </TableHead>
-          {risk.breakdown.map((b, i) => {
-            const overage = Number(b.overage_pct);
-            return (
-              <tr key={i}>
-                <Td className="font-medium">{b.product_name}</Td>
-                <Td className="tabular-nums">{b.discount_pct}%</Td>
-                <Td className="tabular-nums">{b.ceiling_pct}%</Td>
-                <Td className="tabular-nums">
-                  {overage > 0 ? (
-                    <span className="text-risk">{overage.toFixed(1)}pt OVER</span>
-                  ) : (
-                    <span className="text-healthy">0 pt — OK</span>
-                  )}
-                </Td>
-                <Td className="tabular-nums">{(Number(b.weight) * 100).toFixed(0)}%</Td>
-                <Td className="tabular-nums font-medium">{Number(b.contribution).toFixed(2)}</Td>
-              </tr>
-            );
-          })}
-        </Table>
-        <p className="mt-3 rounded-sm border border-yellow-300/50 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
-          Worst single line ({risk.peak}pt over) plus overall pattern across the order sets the blended
-          score. One bad line is enough to require approval.
-        </p>
-      </section>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHead>
+              <Th>Line</Th>
+              <Th>Discount Given</Th>
+              <Th>Limit Allowed</Th>
+              <Th>Over By</Th>
+              <Th>Weight</Th>
+              <Th>Contribution</Th>
+            </TableHead>
+            {risk.breakdown.map((b, i) => {
+              const overage = Number(b.overage_pct);
+              return (
+                <tr key={i}>
+                  <Td className="font-medium">{b.product_name}</Td>
+                  <Td className="tabular-nums">{b.discount_pct}%</Td>
+                  <Td className="tabular-nums">{b.ceiling_pct}%</Td>
+                  <Td className="tabular-nums">
+                    {overage > 0 ? (
+                      <span className="text-danger">{overage.toFixed(1)}pt OVER</span>
+                    ) : (
+                      <span className="text-success">0 pt — OK</span>
+                    )}
+                  </Td>
+                  <Td className="tabular-nums">{(Number(b.weight) * 100).toFixed(0)}%</Td>
+                  <Td className="tabular-nums font-medium">{Number(b.contribution).toFixed(2)}</Td>
+                </tr>
+              );
+            })}
+          </Table>
+        </div>
+        <div className="mt-3">
+          <Callout tone="warning">
+            Worst single line ({risk.peak}pt over) plus overall pattern across the order sets the blended
+            score. One bad line is enough to require approval.
+          </Callout>
+        </div>
+      </Card>
 
-      <section className="rounded-sm border border-border bg-surface p-4">
+      <Card>
         <h2 className="mb-3 text-sm font-semibold text-ink-muted">Approval progress</h2>
         <ApprovalChainPanel
           quotationId={quotation.id}
           ownerUserId={quotation.owner_user_id}
           finalStatus={quotation.status}
         />
-      </section>
+      </Card>
 
       <AuditTrailPanel entityType="quotation" entityId={quotation.id} />
     </div>

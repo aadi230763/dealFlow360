@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { Suggestion } from "@/api/types";
 import { Badge } from "@/components/Badge";
+import { Card } from "@/components/Card";
 import { Money } from "@/components/Money";
 import { EmptyState } from "@/components/EmptyState";
+import { CloseIcon } from "@/components/icons";
 
 export function UpsellSuggestions({
   quotationId,
@@ -39,27 +41,27 @@ export function UpsellSuggestions({
       ) : !suggestions || suggestions.length === 0 ? (
         <EmptyState message="No suggestions right now — add a product to see relevant accessories." />
       ) : (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           {suggestions.map((s) => (
-            <div key={s.product_id} className="relative rounded-sm border border-border bg-surface p-3 text-sm">
+            <Card key={s.product_id} padding="sm" className="hover-lift relative">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   dismissMutation.mutate(s.product_id);
                 }}
                 aria-label="Dismiss"
-                className="absolute right-1.5 top-1.5 text-ink-muted hover:text-risk"
+                className="absolute right-1.5 top-1.5 rounded p-0.5 text-ink-muted transition-colors hover:text-danger"
               >
-                ✕
+                <CloseIcon width={14} height={14} />
               </button>
-              <button onClick={() => onAdd(s.product_id)} className="flex w-full flex-col gap-1 text-left">
-                <span className="pr-4 font-medium text-accent">+ {s.product_name}</span>
+              <button onClick={() => onAdd(s.product_id)} className="flex w-full flex-col gap-1 text-left text-sm">
+                <span className="pr-4 font-medium text-primary">+ {s.product_name}</span>
                 {s.is_promoted && <Badge tone="accent">Promoted</Badge>}
-                <span className="tabular-nums text-healthy">
+                <span className="tabular-nums text-success">
                   Margin +<Money value={Number(s.margin_delta)} />
                 </span>
               </button>
-            </div>
+            </Card>
           ))}
         </div>
       )}

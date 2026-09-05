@@ -37,12 +37,12 @@ export function RiskMeter({ risk }: { risk: RiskResult | null }) {
   const blendedFlash = useFlashOnChange(risk?.blended ?? "0");
   const state = risk ? chainLabel(risk) : { label: "Add lines to see risk", tone: "healthy" as const };
 
-  const borderClass = state.tone === "risk" ? "border-risk" : "border-healthy";
-  const bgClass = state.tone === "risk" ? "bg-risk-bg" : "bg-[#e6f3ed]";
-  const textClass = state.tone === "risk" ? "text-risk" : "text-healthy";
+  const borderClass = state.tone === "risk" ? "border-danger/40" : "border-success/40";
+  const bgClass = state.tone === "risk" ? "bg-danger-bg" : "bg-success-bg";
+  const textClass = state.tone === "risk" ? "text-danger" : "text-success";
 
   return (
-    <div className={`rounded-sm border-2 ${borderClass} ${bgClass} p-3`}>
+    <div className={`rounded-lg border-2 transition-colors duration-200 ${borderClass} ${bgClass} p-3.5`}>
       <p className={`text-xs font-semibold uppercase tracking-wide ${textClass}`}>{state.label}</p>
       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
         <div>
@@ -56,13 +56,13 @@ export function RiskMeter({ risk }: { risk: RiskResult | null }) {
           <p className="text-xs text-ink-muted">Blended</p>
         </div>
         <div>
-          <p className="text-2xl font-semibold tabular-nums">
+          <p className="text-2xl font-semibold tabular-nums text-ink">
             <Percent value={risk ? Number(risk.peak) : 0} />
           </p>
           <p className="text-xs text-ink-muted">Peak</p>
         </div>
         <div>
-          <p className="text-lg font-semibold tabular-nums">
+          <p className="text-lg font-semibold tabular-nums text-ink">
             <Money value={risk ? Number(risk.erosion) : 0} />
           </p>
           <p className="text-xs text-ink-muted">Erosion</p>

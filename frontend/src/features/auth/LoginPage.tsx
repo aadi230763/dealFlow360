@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { Card } from "@/components/Card";
 import { ApiError } from "@/api/client";
 
 export function LoginPage() {
@@ -32,38 +33,46 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-canvas">
-      <div className="w-full max-w-sm rounded-sm border border-border bg-surface p-6">
-        <h1 className="mb-1 text-lg font-semibold tracking-tight">DealFlow360</h1>
-        <p className="mb-6 text-sm text-ink-muted">Sign in to the operations console.</p>
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <Input
-            id="email"
-            label="Email"
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <Input
-            id="password"
-            label="Password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          {error && <p className="text-xs text-risk">{error}</p>}
-          <Button type="submit" disabled={submitting} className="mt-2 w-full">
-            {submitting ? "Signing in…" : "Sign in"}
-          </Button>
-        </form>
-        <p className="mt-4 text-center text-xs text-ink-muted">
-          No account? <Link to="/signup" className="text-accent hover:underline">Sign up</Link>
-        </p>
-      </div>
+    <div className="flex h-screen items-center justify-center bg-background px-4">
+      <Card className="animate-fade-in-up w-full max-w-sm shadow-elevated" padding="none">
+        <div className="p-6">
+          <span className="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-white">
+            D
+          </span>
+          <h1 className="mb-1 text-lg font-semibold tracking-tight text-ink">DealFlow360</h1>
+          <p className="mb-6 text-sm text-ink-muted">Sign in to the operations console.</p>
+          <form onSubmit={onSubmit} className="flex flex-col gap-3">
+            <Input
+              id="email"
+              label="Email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <Input
+              id="password"
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            {error && <p className="text-xs text-danger">{error}</p>}
+            <Button type="submit" disabled={submitting} className="mt-2 w-full">
+              {submitting ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
+          <p className="mt-4 text-center text-xs text-ink-muted">
+            No account?{" "}
+            <Link to="/signup" className="font-medium text-primary hover:underline">
+              Sign up
+            </Link>
+          </p>
+        </div>
+      </Card>
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
 import { Table, TableHead, Th, Td } from "@/components/Table";
+import { Section } from "@/components/Section";
+import { Callout } from "@/components/Callout";
 import { Money } from "@/components/Money";
 import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/components/Toast";
@@ -77,22 +79,20 @@ export function ProductDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <Link to="/products" className="text-sm text-accent hover:underline">
+          <Link to="/products" className="text-sm text-primary hover:underline">
             ← Products
           </Link>
-          <h1 className="text-lg font-semibold tracking-tight">{product.name}</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-ink">{product.name}</h1>
         </div>
         <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
           {saveMutation.isPending ? "Saving…" : "Save changes"}
         </Button>
       </div>
 
-      {/* General info */}
-      <section className="rounded-sm border border-border bg-surface p-4">
-        <h2 className="mb-3 text-sm font-semibold text-ink-muted">General info</h2>
-        <div className="grid grid-cols-2 gap-6">
+      <Section title="General info">
+        <div className="grid gap-6 sm:grid-cols-2">
           <div className="flex flex-col gap-3">
             <Input
               id="pd-name"
@@ -125,12 +125,12 @@ export function ProductDetailPage() {
               value={form.unit ?? ""}
               onChange={(e) => setForm({ ...form, unit: e.target.value })}
             />
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-ink-muted">Description</span>
               <textarea
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="min-h-[70px] rounded-sm border border-border bg-surface px-2.5 py-1.5 text-sm"
+                className="min-h-[70px] rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
               />
             </label>
           </div>
@@ -142,10 +142,10 @@ export function ProductDetailPage() {
               value={form.tax_pct ?? ""}
               onChange={(e) => setForm({ ...form, tax_pct: e.target.value })}
             />
-            <div className="flex flex-col gap-1 text-sm">
+            <div className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-ink-muted">Subscription</span>
               <div className="flex gap-3">
-                <label className="flex items-center gap-1.5">
+                <label className="flex items-center gap-1.5 text-ink">
                   <input
                     type="radio"
                     checked={form.is_subscription === true}
@@ -153,7 +153,7 @@ export function ProductDetailPage() {
                   />
                   Yes
                 </label>
-                <label className="flex items-center gap-1.5">
+                <label className="flex items-center gap-1.5 text-ink">
                   <input
                     type="radio"
                     checked={!form.is_subscription}
@@ -179,15 +179,13 @@ export function ProductDetailPage() {
             )}
             <div>
               <p className="text-sm font-medium text-ink-muted">Quantity on hand</p>
-              <p className="text-lg font-semibold tabular-nums">{product.quantity_on_hand}</p>
+              <p className="text-lg font-semibold tabular-nums text-ink">{product.quantity_on_hand}</p>
             </div>
           </div>
         </div>
-      </section>
+      </Section>
 
-      {/* Product Variants */}
-      <section className="rounded-sm border border-border bg-surface p-4">
-        <h2 className="mb-3 text-sm font-semibold text-ink-muted">Product Variants</h2>
+      <Section title="Product Variants">
         {product.variants.length > 0 ? (
           <Table>
             <TableHead>
@@ -208,7 +206,7 @@ export function ProductDetailPage() {
         ) : (
           <EmptyState message="No variants yet." />
         )}
-        <div className="mt-3 flex items-end gap-2 border-t border-border pt-3">
+        <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
           <Input
             id="v-attr"
             label="Attribute"
@@ -238,11 +236,9 @@ export function ProductDetailPage() {
             Add variant
           </Button>
         </div>
-      </section>
+      </Section>
 
-      {/* Pricelists */}
-      <section className="rounded-sm border border-border bg-surface p-4">
-        <h2 className="mb-3 text-sm font-semibold text-ink-muted">Pricelists</h2>
+      <Section title="Pricelists">
         <Table>
           <TableHead>
             <Th>Tier</Th>
@@ -259,12 +255,12 @@ export function ProductDetailPage() {
             </tr>
           ))}
         </Table>
-      </section>
+      </Section>
 
-      <p className="rounded-sm border border-yellow-300/50 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+      <Callout tone="warning">
         Product details should be filled. Recurring orders with this product will be invoiced at the
         beginning of the period.
-      </p>
+      </Callout>
     </div>
   );
 }

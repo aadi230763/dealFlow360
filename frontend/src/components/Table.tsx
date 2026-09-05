@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 export function Table({ children }: { children: ReactNode }) {
   return (
     <table className="w-full border-collapse text-sm">
-      <tbody className="[&>tr]:border-b [&>tr]:border-border [&>tr:last-child]:border-0">
+      <tbody className="[&>tr]:border-b [&>tr]:border-border [&>tr]:transition-colors [&>tr]:duration-150 [&>tr:hover]:bg-canvas [&>tr:last-child]:border-0">
         {children}
       </tbody>
     </table>
@@ -21,9 +21,9 @@ export function TableHead({ children }: { children: ReactNode }) {
 }
 
 export function Th({ children }: { children: ReactNode }) {
-  return <th className="px-3 py-2 font-semibold">{children}</th>;
+  return <th className="px-3 py-2.5 font-semibold">{children}</th>;
 }
 
 export function Td({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <td className={`px-3 py-2 ${className}`}>{children}</td>;
+  return <td className={`px-3 py-2.5 ${className}`}>{children}</td>;
 }
