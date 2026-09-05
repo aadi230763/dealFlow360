@@ -59,6 +59,7 @@ export function QuotationListPage() {
       qc.invalidateQueries({ queryKey: ["quotations"] });
       toast.push("Quotation moved");
     },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Move failed", "risk"),
   });
 
   const [statusFilter, setStatusFilter] = useState<string>("");

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import type { SystemSetting } from "@/api/types";
 import { Table, TableHead, Th, Td } from "@/components/Table";
 import { EmptyState } from "@/components/EmptyState";
@@ -26,6 +26,7 @@ export function SettingsPage() {
       qc.invalidateQueries({ queryKey: ["settings"] });
       toast.push("Setting updated");
     },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Update failed", "risk"),
   });
 
   return (

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import type { ProrationPolicy, SubscriptionInterval, SubscriptionPlan } from "@/api/types";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -37,6 +37,7 @@ export function SubscriptionPlansPage() {
       setForm({ name: "", interval: "MONTHLY", proration_policy: "DAILY_PRORATE", cancellation_policy: "CREDIT_REMAINING" });
       toast.push("Plan created");
     },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Create failed", "risk"),
   });
 
   const onSubmit = (e: FormEvent) => {

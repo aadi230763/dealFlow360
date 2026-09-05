@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import type { Product, StockLevel, Warehouse } from "@/api/types";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -37,6 +37,7 @@ export function WarehousesPage() {
       setForm({ name: "", code: "", shipping_cost_weight: "1.0" });
       toast.push("Warehouse created");
     },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Create failed", "risk"),
   });
 
   const upsertStock = useMutation({
@@ -59,6 +60,7 @@ export function WarehousesPage() {
       qc.invalidateQueries({ queryKey: ["stock"] });
       toast.push("Stock updated");
     },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Stock update failed", "risk"),
   });
 
   const stockFor = useMemo(() => {

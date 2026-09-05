@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import type { Product, ProductPairing } from "@/api/types";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -43,6 +43,7 @@ export function PairingsPage() {
       setForm({ product_id: "", suggested_product_id: "", co_purchase_score: "0.5", min_margin_pct: "15" });
       toast.push("Pairing created");
     },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Create failed", "risk"),
   });
 
   const productName = (id: string) => products?.find((p) => p.id === id)?.name ?? "—";

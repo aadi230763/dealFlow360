@@ -73,6 +73,7 @@ export function ProductDetailPage() {
       setVariantForm({ attribute_name: "", value: "", price_delta: "0" });
       toast.push("Variant added");
     },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Add variant failed", "risk"),
   });
 
   if (!product) return null;

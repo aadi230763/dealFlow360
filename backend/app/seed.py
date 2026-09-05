@@ -1,5 +1,6 @@
-"""Idempotent seed script. Run with `python -m app.seed`."""
+"""Idempotent seed script. Run with `python -m app.seed` (add `--reset` to wipe and reseed)."""
 
+import argparse
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -22,6 +23,9 @@ from app.models.user import Role, User
 from app.models.warehouse import StockLevel, Warehouse
 
 import app.models.audit  # noqa: F401
+import app.models.approval_request  # noqa: F401
+import app.models.billing  # noqa: F401
+import app.models.portal  # noqa: F401
 
 SEED_USERS = [
     ("admin@dealflow360.com", "Ada Admin", Role.ADMIN),
@@ -168,10 +172,21 @@ def _seed_historical_quotations(
     total = 18
     forced_stalled = 4  # guarantees >= 3 quotations past the 10-day threshold, in a non-terminal state
 
+    # One rep gets one clearly outlying quote against their own otherwise-normal history --
+    # this is what the discount-anomaly detector (Phase 8) needs to have something to flag
+    # right after a fresh seed, without waiting for a live demo action to create it. A rep
+    # discounting high on *every* quote would just raise their own baseline and never trip a
+    # z-score against themselves, so only the last of their quotes is pushed far out.
+    outlier_rep_email = "rep3@dealflow360.com"
+    outlier_rep_quote_count = sum(1 for i in range(total) if reps[i % len(reps)].email == outlier_rep_email)
+    seen_for_outlier_rep = 0
+
     for i in range(total):
         rep = reps[i % len(reps)]
-        # One rep discounts noticeably higher than the others -- useful anomaly-detector fodder in Phase 8.
-        is_high_discount_rep = rep.email == "rep3@dealflow360.com"
+        is_outlier_rep = rep.email == outlier_rep_email
+        if is_outlier_rep:
+            seen_for_outlier_rep += 1
+        is_outlier_quote = is_outlier_rep and seen_for_outlier_rep == outlier_rep_quote_count
 
         customer = random.choice(customers)
         ceilings = ceilings_by_tier[customer.tier_id]
@@ -181,8 +196,8 @@ def _seed_historical_quotations(
         for product in chosen_products:
             qty = random.randint(1, 8)
             base_ceiling = int(ceilings.get(product.category_id, Decimal("10")))
-            if is_high_discount_rep:
-                discount = Decimal(random.randint(base_ceiling + 5, base_ceiling + 15))
+            if is_outlier_quote:
+                discount = Decimal(random.randint(base_ceiling + 20, base_ceiling + 30))
             else:
                 discount = Decimal(random.randint(0, base_ceiling + 2))
             engine_lines.append(
@@ -297,6 +312,13 @@ def _seed_delivery_slippage_demo(db) -> None:
             )
         )
     db.flush()
+
+
+def reset() -> None:
+    """Drops every table and recreates the schema, so `seed()` starts from a blank database.
+    There is no migration tool in this project (create_all is the only schema manager), so a
+    full drop/create is the only reliable way to guarantee demo-ready state on demand."""
+    Base.metadata.drop_all(bind=engine)
 
 
 def seed() -> None:
@@ -520,4 +542,9 @@ def seed() -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--reset", action="store_true", help="Drop all tables before seeding")
+    args = parser.parse_args()
+    if args.reset:
+        reset()
     seed()

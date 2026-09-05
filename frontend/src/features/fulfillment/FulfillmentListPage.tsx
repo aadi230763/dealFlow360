@@ -13,9 +13,11 @@ import { SkeletonText } from "@/components/Skeleton";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/components/Toast";
 
 function StockRow({ stock, warehouseName, productName, isAdmin }: { stock: StockLevel; warehouseName: string; productName: string; isAdmin: boolean }) {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [onHand, setOnHand] = useState(String(stock.on_hand));
 
@@ -29,6 +31,7 @@ function StockRow({ stock, warehouseName, productName, isAdmin }: { stock: Stock
       queryClient.invalidateQueries({ queryKey: ["stock-levels"] });
       setEditing(false);
     },
+    onError: (err) => toast.push(err instanceof ApiError ? err.detail : "Stock update failed", "risk"),
   });
 
   const available = stock.on_hand - stock.reserved;
