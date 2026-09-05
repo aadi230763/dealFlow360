@@ -33,11 +33,14 @@ function issueText(row: AlertRow): string {
 function DiscountByRepChart({ points }: { points: DashboardMetricsOut["discount_by_rep"] }) {
   if (points.length === 0) return <EmptyState message="Not enough discount history yet." />;
 
-  const width = 420;
+  const width = 460;
   const barHeight = 22;
   const gap = 10;
   const labelWidth = 96;
-  const plotWidth = width - labelWidth - 48;
+  const valueColumnWidth = 40;
+  const outlierColumnWidth = 56;
+  const plotWidth = width - labelWidth - valueColumnWidth - outlierColumnWidth - 16;
+  const valueX = labelWidth + plotWidth + 8;
   const maxValue = Math.max(...points.map((p) => Number(p.discount_pct)), 1);
   const height = points.length * (barHeight + gap);
 
@@ -69,8 +72,11 @@ function DiscountByRepChart({ points }: { points: DashboardMetricsOut["discount_
             >
               <title>{`${p.rep_name}: ${value}% avg discount${p.is_outlier ? " (flagged)" : ""}`}</title>
             </rect>
+            {/* Value and Outlier each get their own fixed column past the plot area, rather
+                than being positioned relative to the bar's length -- a long bar (an outlier
+                near the max) would otherwise push the value label into the Outlier badge. */}
             <text
-              x={labelWidth + barLen + 6}
+              x={valueX}
               y={y + barHeight / 2 + 4}
               className="fill-ink text-[11px] font-medium tabular-nums"
             >
