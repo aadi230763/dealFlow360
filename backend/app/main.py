@@ -8,10 +8,12 @@ from app.api import (
     approvals,
     audit,
     auth,
+    billing,
     categories,
     ceilings,
     customers,
     events,
+    fulfillment,
     health,
     me,
     pairings,
@@ -39,6 +41,8 @@ import app.models.pairing  # noqa: F401
 import app.models.setting  # noqa: F401
 import app.models.quotation  # noqa: F401
 import app.models.approval_request  # noqa: F401
+import app.models.fulfillment  # noqa: F401
+import app.models.billing  # noqa: F401
 
 Base.metadata.create_all(bind=engine)
 
@@ -72,5 +76,7 @@ app.include_router(pairings.router)
 app.include_router(settings_api.router)
 app.include_router(quotations.router)
 app.include_router(approvals.router)
+app.include_router(fulfillment.router)
+app.include_router(billing.router)
 app.include_router(events.router)
 app.include_router(audit.router)

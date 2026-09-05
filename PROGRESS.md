@@ -16,8 +16,10 @@ A snapshot of where the build actually stands right now, across both sides. The 
 - Generic audit-event reads (`/api/audit-events`, filtered or recent-across-everything for the dashboard feed).
 - `seed.py` — idempotent: 6 internal users (admin, 3 reps, manager, finance), 3 tiers, 3 categories, 12 products, 4 customers, 2 warehouses (deliberately split stock), 3 subscription plans, 8 pairings, 2 approval rules, 3 settings, 18 historical quotations priced through the real engine.
 - `engine/upsell.py` + `GET /api/quotations/{id}/suggestions` + dismiss endpoint — ranked, margin-floor-filtered upsell suggestions, every number from a real second `price_quotation` call.
+- `Fulfillment`/`FulfillmentAllocation` + `engine/fulfillment.py` split logic — auto-plans on approval, plan/accept/override/consolidate/ship endpoints.
+- `Order`/`Invoice`/`BillingSchedule`/`Payment`/`CreditNote` + `engine/billing.py` — confirm, shipment-driven one-time invoicing, recurring billing with daily/full-period proration, payments.
 
-**Not started yet** (Phases 5–8 backend): `Fulfillment`/`FulfillmentAllocation` + split logic, `Order`/`Invoice`/`BillingSchedule`/`Payment`/`CreditNote` + proration, `PortalToken`/`NegotiationRequest` + portal routes, anomaly/stalled-deal engine, reports/export endpoints.
+**Not started yet** (Phases 7–8 backend): `PortalToken`/`NegotiationRequest` + portal routes, anomaly/stalled-deal engine, reports/export endpoints.
 
 ### Frontend (React + Vite + TS, running on the **host** via `npm run dev` — not the Docker container)
 
@@ -31,8 +33,10 @@ A snapshot of where the build actually stands right now, across both sides. The 
 - Product Catalog + Product Detail (general info, variants, pricelists-display), Discount Config (4 blocks, one batched save).
 - SSE-driven toasts + live query invalidation across all of the above.
 - Upsell and Cross-Sell Suggestions cards on Quotation Detail — ranked, real margin deltas, click to add, dismiss for the session.
+- Fulfillment and Stock (screen 7) + Fulfillment Detail (screen 8) — live stock with inline admin edit, per-warehouse split with expandable explanations, Accept/Override/Consolidate/Ship.
+- Subscriptions List (screen 9) + Billing Detail (screen 10) + Invoices List (screen 12) + Invoice Detail (screen 13) — real preview-then-confirm proration flow, payment recording, stepper reflecting real order/ship/invoice/paid state.
 
-**Placeholder only** (nav item exists, no real screen behind it yet): Fulfillment, Subscriptions, Invoices, Deal Health, Reports.
+**Placeholder only** (nav item exists, no real screen behind it yet): Deal Health, Reports.
 
 **Not built:** customer portal (Phase 7 — no `/portal/:token` route tree exists), PDF/CSV export, report filters.
 
@@ -238,5 +242,55 @@ The mentor issued a new plan, `v2.md`, superseding `IMPLEMENTATION.md`. It confi
 - [x] Dismiss removes it for the session.
 
 **Signed off by the human on 2026-09-05. Gate 4 passed — clear to start Phase 5 (multi-warehouse fulfillment).**
+
+---
+
+## Phase 5 — Multi-warehouse fulfillment
+
+**Built:**
+- `Fulfillment`/`FulfillmentAllocation` models (`status` PLANNED/ACCEPTED; `shipped_at` on the allocation, load-bearing for Phase 6 per the spec).
+- `engine/fulfillment.py` — pure `plan_split(lines, stock, warehouses, base_shipment_cost)`: greedy, ranks warehouses each round by how many remaining line-quantities they can fully cover (descending), then `shipping_cost_weight` (ascending); anything left after all warehouses are exhausted becomes a backorder allocation; returns per-line plain-English explanations and order-level `total_shipments`/`estimated_cost`.
+- New `fulfillment_base_shipment_cost` system setting (seeded 10) — the engine takes it as a parameter, never reads it itself.
+- `api/fulfillment.py`: `ensure_fulfillment_planned()` — auto-runs the split and persists it (no stock reserved yet) the moment a quotation reaches `APPROVED`; wired into both places that can produce `APPROVED` (`submit`'s auto-approve branch and `recompute`'s branch in `api/quotations.py`, and the final-approval branch in `api/approvals.py`). Plus `plan` (preview, no writes), `accept` (reserves stock), `override` (manual per-warehouse qty, validated against live availability, only while still `PLANNED`), `consolidate` (re-plans open backorders against current stock), and `ship` (sets `shipped_at`, decrements `on_hand`/`reserved` — no consumer yet at this phase).
+- Frontend: `FulfillmentListPage` (screen 7 — live stock table with inline admin edit reusing the existing stock PUT endpoint, plus the orders-awaiting-fulfillment table) and `FulfillmentDetailPage` (screen 8 — per-warehouse grouping with expandable line-level explanations, Ship per allocation, Accept Suggested Split, Manual Override).
+
+**Verified (via the API and the running app):**
+- A quotation whose lines exceed any single warehouse's stock auto-plans a split across exactly the warehouses needed, quantities summing to the ordered qty.
+- Accepting a split increments `reserved` on the correct stock rows.
+- Shipping an allocation sets `shipped_at` and adjusts `on_hand`/`reserved`.
+- Every allocation carries a real, computed explanation (not hardcoded).
+
+**Skipped:** XLS-adjacent depth wasn't relevant here; consolidate-backorder is implemented but its "prompt appears automatically" is a manual button rather than a polling/background check (cut-list item #6 in v2.md).
+
+**Known breakage / judgment calls:**
+- Override is only allowed while a fulfillment is still `PLANNED` (un-reserving an already-accepted split isn't implemented — the mockup's footer buttons don't imply that path either).
+- The fulfillment engine allocates *any* product with a `StockLevel` row, including a seeded subscription product that happens to have stock rows — harmless (Phase 6's `invoice_shipment` explicitly ignores `RECURRING` lines when an allocation ships), but worth a real fix in a later pass: subscription/service lines shouldn't enter warehouse planning at all.
+
+---
+
+## Phase 6 — Hybrid billing (one-time + recurring)
+
+**Built:**
+- `Order`/`Invoice`/`BillingSchedule`/`Payment`/`CreditNote` models (`models/billing.py`). `CreditNote.invoice_id` is nullable — a mid-cycle decrease or a cancellation credit isn't tied to one specific invoice.
+- `engine/billing.py` — pure: `add_period`/`subtract_period` (real calendar-month arithmetic, not fixed day counts, so Jan 31 + 1 month lands on Feb 28/29 and periods survive a year boundary correctly), `build_schedule` (first period + a computed "next 12 occurrences" list used for display/verification, not 12 persisted rows — nothing is invoiced before its period starts), `invoice_amount_for_qty` (proportional one-time invoicing for a partial shipment), `prorate` (daily/full-period/none per the plan's policy), `cancel_credit`.
+- `api/billing.py`: `POST /api/quotations/{id}/confirm` (APPROVED → CONFIRMED; creates the `Order`; issues the first-period invoice immediately for every `RECURRING` line; creates **no** invoice for `ONE_TIME` lines). `invoice_shipment()` — wired into Phase 5's existing `ship_allocation` (previously a no-op consumer) with one added call; creates a new one-time invoice per ship event rather than trying to merge same-batch multi-warehouse ships into one growing invoice, matching the demo script literally (ship 18 → one invoice; ship the backorder later → a second invoice). `GET/POST` endpoints for subscriptions (list/detail/change-with-preview/cancel) and invoices (list/detail/payments).
+- Frontend: `SubscriptionsListPage` (screen 9, incl. a "+ New Plan" modal reusing the existing `/subscription-plans` endpoint — no new plan-CRUD route needed), `BillingDetailPage` (screen 10, with a real preview-then-confirm flow for Modify Subscription), `InvoicesListPage` (screen 12), `InvoiceDetailPage` (screen 13, with a real `Stepper` reusing the approval-chain component, Record Payment, and a client-side text-file Download Summary since no PDF infra exists yet). Added a "Confirm Order" button to the quotation detail view for `APPROVED` quotations — the mockup has no such button because Phase 7's portal is meant to trigger this, but that phase doesn't exist yet, so this is the bridge until then.
+
+**Verified end-to-end against a real quotation (hardware + subscription line, split across two warehouses):**
+- Confirming created exactly one `RECURRING` invoice (₹9,000 + ₹1,620 tax) and zero one-time invoices.
+- Shipping 12 of 20 laptop units invoiced exactly ₹1,080,000 / ₹194,400 tax (= 1,800,000 × 12/20 and 324,000 × 12/20, hand-checked); shipping the remaining 8 produced a second invoice for the rest, summing exactly to the line total.
+- Shipping the recurring line's own allocation created no invoice (guarded by `line_type`).
+- Increasing a subscription 3→5 seats same-day (30 of 30 days remaining) charged exactly ₹6,000 = (5-3)×₹3,000/seat × 30/30, and set the new per-period amount to ₹15,000 = 5×₹3,000.
+- Decreasing 5→2 seats produced a ₹9,000 **credit note**, not a negative invoice or invoice at all — invoice count stayed unchanged.
+- A partial payment set the invoice to `PARTIAL`; paying the remainder set it to `PAID`.
+- Cancelling issued a `CREDIT_REMAINING` credit and set the schedule `CANCELLED`; `upcoming` correctly produced 12 monthly occurrences rolling over the 2026→2027 year boundary.
+- Invoice Detail's stage correctly read `Paid` for the paid invoice and `Invoiced` for the still-issued ones.
+- No import/startup errors after registering the new model/router modules; `tsc -b --noEmit` clean.
+
+**Skipped:** cancellation-policy depth beyond `CREDIT_REMAINING`/none (explicit cut-list item #7 in v2.md); a real PDF for "Download Summary" (no WeasyPrint/ReportLab wired up yet — Phase 8 territory); pausing a subscription (`PAUSED` status exists on the model but nothing sets it, since no screen calls for it).
+
+**Known breakage / judgment calls:**
+- `invoice_shipment` creates one invoice per ship *event* rather than merging same-day multi-warehouse shipments into a single invoice — simpler, and matches the demo script's own worked example exactly.
+- Order/Invoice numbering (`ORD-0001`, `INV-0001`) mirrors the existing `Quotation` numbering pattern (row count + 1) — fine for a single-process demo, not safe under concurrent writes (same caveat already true of quotation numbering).
 
 ---

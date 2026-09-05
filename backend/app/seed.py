@@ -107,6 +107,8 @@ SYSTEM_SETTINGS = {
     "stalled_deal_day_threshold": 10,
     "anomaly_zscore_threshold": 2.0,
     "currency_symbol": "₹",
+    "fulfillment_base_shipment_cost": 10,
+    "invoice_due_days": 15,
 }
 
 NON_TERMINAL_STATUSES = [

@@ -9,6 +9,7 @@ from app.core.audit import log_event
 from app.core.deps import get_current_user, get_db
 from app.core.dismissals import dismiss as dismiss_suggestion_for, get_dismissed
 from app.core.events import publish
+from app.api.fulfillment import ensure_fulfillment_planned
 from app.engine.ceilings import resolve_ceiling
 from app.engine.pricing import LineInput, QuotationPricing, price_quotation
 from app.engine.risk import RiskResult, compute_risk
@@ -451,6 +452,8 @@ def submit_quotation(
 
     quotation.last_activity_at = datetime.now(timezone.utc)
     db.flush()
+    if quotation.status == QuotationStatus.APPROVED:
+        ensure_fulfillment_planned(db, quotation, user)
     log_event(
         db,
         entity_type="quotation",
@@ -537,6 +540,8 @@ def recompute_quotation(
 
     quotation.last_activity_at = datetime.now(timezone.utc)
     db.flush()
+    if quotation.status == QuotationStatus.APPROVED:
+        ensure_fulfillment_planned(db, quotation, user)
     log_event(
         db,
         entity_type="quotation",

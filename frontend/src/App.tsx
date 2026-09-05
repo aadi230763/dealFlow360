@@ -12,6 +12,12 @@ import { ApprovalDetailPage } from "@/features/quotations/ApprovalDetailPage";
 import { ProductCatalogPage } from "@/features/products/ProductCatalogPage";
 import { ProductDetailPage } from "@/features/products/ProductDetailPage";
 import { DiscountConfigPage } from "@/features/products/DiscountConfigPage";
+import { FulfillmentListPage } from "@/features/fulfillment/FulfillmentListPage";
+import { FulfillmentDetailPage } from "@/features/fulfillment/FulfillmentDetailPage";
+import { SubscriptionsListPage } from "@/features/billing/SubscriptionsListPage";
+import { BillingDetailPage } from "@/features/billing/BillingDetailPage";
+import { InvoicesListPage } from "@/features/billing/InvoicesListPage";
+import { InvoiceDetailPage } from "@/features/billing/InvoiceDetailPage";
 
 export function App() {
   return (
@@ -35,18 +41,12 @@ export function App() {
           <Route path="/products/discount-config" element={<DiscountConfigPage />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
 
-          <Route
-            path="/fulfillment"
-            element={<Placeholder title="Fulfillment" message="Warehouse split and stock arrive in Phase 5." />}
-          />
-          <Route
-            path="/subscriptions"
-            element={<Placeholder title="Subscriptions" message="Recurring plans arrive in Phase 6." />}
-          />
-          <Route
-            path="/invoices"
-            element={<Placeholder title="Invoices" message="Billing and invoices arrive in Phase 6." />}
-          />
+          <Route path="/fulfillment" element={<FulfillmentListPage />} />
+          <Route path="/fulfillment/:id" element={<FulfillmentDetailPage />} />
+          <Route path="/subscriptions" element={<SubscriptionsListPage />} />
+          <Route path="/subscriptions/:id" element={<BillingDetailPage />} />
+          <Route path="/invoices" element={<InvoicesListPage />} />
+          <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
           <Route
             path="/deal-health"
             element={<Placeholder title="Deal Health" message="Anomaly detection arrives in Phase 8." />}

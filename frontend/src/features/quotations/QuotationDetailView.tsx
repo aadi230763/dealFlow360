@@ -30,6 +30,18 @@ export function QuotationDetailView({ quotation }: { quotation: Quotation }) {
     queryFn: () => api.get<RiskResult>(`/quotations/${quotation.id}/risk`),
   });
 
+  const confirmMutation = useMutation({
+    mutationFn: () => api.post<Quotation>(`/quotations/${quotation.id}/confirm`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["quotation", quotation.id] });
+      qc.invalidateQueries({ queryKey: ["quotations"] });
+      toast.push("Order confirmed — recurring lines invoiced, one-time lines invoice on shipment.");
+    },
+    onError: (err) => {
+      toast.push(err instanceof ApiError ? err.detail : "Confirm failed", "risk");
+    },
+  });
+
   const recomputeMutation = useMutation({
     mutationFn: () => api.post<Quotation>(`/quotations/${quotation.id}/recompute`),
     onSuccess: (updated) => {
@@ -65,6 +77,16 @@ export function QuotationDetailView({ quotation }: { quotation: Quotation }) {
           {wentThroughRouting && (
             <Link to={`/approvals/${quotation.id}`}>
               <Button variant="secondary">View Approval Detail</Button>
+            </Link>
+          )}
+          {quotation.status === "APPROVED" && (
+            <Button variant="primary" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending}>
+              {confirmMutation.isPending ? "Confirming…" : "Confirm Order"}
+            </Button>
+          )}
+          {(quotation.status === "APPROVED" || quotation.status === "CONFIRMED" || quotation.status === "FULFILLING") && (
+            <Link to="/fulfillment">
+              <Button variant="secondary">View Fulfillment</Button>
             </Link>
           )}
           <Button variant="secondary" onClick={() => recomputeMutation.mutate()} disabled={recomputeMutation.isPending}>

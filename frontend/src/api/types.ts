@@ -318,6 +318,141 @@ export interface Suggestion {
   reason: string;
 }
 
+export type FulfillmentStatus = "PLANNED" | "ACCEPTED";
+
+export interface FulfillmentAllocationOut {
+  id: string;
+  quotation_line_id: string;
+  product_id: string;
+  product_name: string;
+  line_qty: number;
+  warehouse_id: string | null;
+  warehouse_name: string | null;
+  qty: number;
+  is_backorder: boolean;
+  shipped_at: string | null;
+}
+
+export interface FulfillmentOut {
+  id: string;
+  quotation_id: string;
+  quotation_number: string;
+  customer_name: string;
+  status: FulfillmentStatus;
+  total_shipments: number;
+  estimated_cost: string;
+  is_manual_override: boolean;
+  explanations: string[];
+  allocations: FulfillmentAllocationOut[];
+  created_at: string;
+}
+
+export interface FulfillmentListItem {
+  fulfillment_id: string;
+  quotation_id: string;
+  order_number: string;
+  customer_name: string;
+  status_label: string;
+  warehouse_names: string;
+}
+
+export interface OverrideAllocationIn {
+  quotation_line_id: string;
+  warehouse_id: string;
+  qty: number;
+}
+
+export type BillingScheduleStatus = "ACTIVE" | "PAUSED" | "CANCELLED";
+export type InvoiceType = "ONE_TIME" | "RECURRING";
+export type InvoiceStatus = "DRAFT" | "ISSUED" | "PAID" | "PARTIAL" | "CREDITED";
+
+export interface SubscriptionListItem {
+  schedule_id: string;
+  customer_name: string;
+  plan_name: string;
+  interval: SubscriptionInterval;
+  next_billing_date: string;
+  status: BillingScheduleStatus;
+}
+
+export interface OneTimeLineOut {
+  product_name: string;
+  qty: number;
+  amount: string;
+}
+
+export interface PeriodOccurrenceOut {
+  period_start: string;
+  period_end: string;
+  amount: string;
+}
+
+export interface SubscriptionDetailOut {
+  schedule_id: string;
+  order_id: string;
+  order_number: string;
+  customer_name: string;
+  plan_name: string;
+  interval: SubscriptionInterval;
+  interval_count: number;
+  qty: number;
+  amount: string;
+  next_billing_date: string;
+  status: BillingScheduleStatus;
+  proration_policy: string;
+  cancellation_policy: string;
+  one_time_lines: OneTimeLineOut[];
+  upcoming: PeriodOccurrenceOut[];
+}
+
+export interface ProrationPreviewOut {
+  old_qty: number;
+  new_qty: number;
+  delta_amount: string;
+  is_credit: boolean;
+  days_remaining: number;
+  days_in_period: number;
+  new_period_amount: string;
+  summary: string;
+}
+
+export interface InvoiceListItem {
+  id: string;
+  number: string;
+  customer_name: string;
+  amount: string;
+  tax: string;
+  status: InvoiceStatus;
+  type: InvoiceType;
+  due_date: string;
+}
+
+export interface PaymentOut {
+  id: string;
+  amount: string;
+  method: string;
+  reference: string | null;
+  received_at: string;
+}
+
+export interface InvoiceDetailOut {
+  id: string;
+  number: string;
+  order_id: string;
+  order_number: string;
+  customer_name: string;
+  type: InvoiceType;
+  amount: string;
+  tax: string;
+  status: InvoiceStatus;
+  issue_date: string;
+  due_date: string;
+  period_start: string | null;
+  period_end: string | null;
+  payments: PaymentOut[];
+  stage: string;
+}
+
 export interface QuotationListItem {
   id: string;
   number: string;

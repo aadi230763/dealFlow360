@@ -9,6 +9,7 @@ import type {
   Quotation,
   QuotationLineIn,
   QuotationPreview,
+  SubscriptionPlan,
 } from "@/api/types";
 import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
@@ -58,6 +59,10 @@ export function QuotationBuilderPage() {
     queryKey: ["products"],
     queryFn: () => api.get<Product[]>("/products"),
   });
+  const { data: subscriptionPlans } = useQuery({
+    queryKey: ["subscription-plans"],
+    queryFn: () => api.get<SubscriptionPlan[]>("/subscription-plans"),
+  });
 
   const [customerId, setCustomerId] = useState("");
   const [lines, setLines] = useState<QuotationLineIn[]>([]);
@@ -77,6 +82,8 @@ export function QuotationBuilderPage() {
           qty: l.qty,
           discount_pct: Number(l.discount_pct),
           line_type: l.line_type,
+          subscription_plan_id: l.subscription_plan_id,
+          start_date: l.start_date,
         })),
       );
       setLoadedForId(existing.id);
@@ -108,12 +115,26 @@ export function QuotationBuilderPage() {
 
   const addProduct = (productId: string) => {
     if (!productId) return;
+    const product = productById.get(productId);
     setLines((prev) => {
       const idx = prev.findIndex((l) => l.product_id === productId && !l.variant_id);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
         return next;
+      }
+      if (product?.is_subscription) {
+        return [
+          ...prev,
+          {
+            product_id: productId,
+            qty: 1,
+            discount_pct: 0,
+            line_type: "RECURRING",
+            subscription_plan_id: subscriptionPlans?.[0]?.id ?? null,
+            start_date: new Date().toISOString().slice(0, 10),
+          },
+        ];
       }
       return [...prev, { product_id: productId, qty: 1, discount_pct: 0, line_type: "ONE_TIME" }];
     });
@@ -243,6 +264,9 @@ export function QuotationBuilderPage() {
                 <th className="px-3 py-2.5">Qty</th>
                 <th className="px-3 py-2.5">Price</th>
                 <th className="px-3 py-2.5">Discount</th>
+                <th className="px-3 py-2.5">Type</th>
+                <th className="px-3 py-2.5">Plan</th>
+                <th className="px-3 py-2.5">Start</th>
                 <th className="px-3 py-2.5">Limit</th>
                 <th className="px-3 py-2.5">Status</th>
                 <th className="px-3 py-2.5" />
@@ -284,6 +308,52 @@ export function QuotationBuilderPage() {
                         onChange={(e) => updateLine(index, { discount_pct: Number(e.target.value) })}
                         className="w-20 rounded-md border border-border bg-surface px-2 py-1 tabular-nums text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
                       />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {product?.is_subscription ? (
+                        <select
+                          value={line.line_type ?? "RECURRING"}
+                          onChange={(e) => updateLine(index, { line_type: e.target.value as "ONE_TIME" | "RECURRING" })}
+                          className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-ink outline-none focus-visible:border-primary"
+                        >
+                          <option value="RECURRING">Recurring</option>
+                          <option value="ONE_TIME">One-Time</option>
+                        </select>
+                      ) : (
+                        <span className="text-ink-muted">One-Time</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {product?.is_subscription && line.line_type === "RECURRING" ? (
+                        <select
+                          value={line.subscription_plan_id ?? ""}
+                          onChange={(e) => updateLine(index, { subscription_plan_id: e.target.value || null })}
+                          className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-ink outline-none focus-visible:border-primary"
+                        >
+                          <option value="" disabled>
+                            Select plan…
+                          </option>
+                          {subscriptionPlans?.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-ink-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {product?.is_subscription && line.line_type === "RECURRING" ? (
+                        <input
+                          type="date"
+                          value={line.start_date ?? ""}
+                          onChange={(e) => updateLine(index, { start_date: e.target.value || null })}
+                          className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-ink outline-none focus-visible:border-primary"
+                        />
+                      ) : (
+                        <span className="text-ink-muted">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 tabular-nums text-ink-muted">{priced ? `${priced.ceiling_pct}%` : "—"}</td>
                     <td className="px-3 py-2.5">

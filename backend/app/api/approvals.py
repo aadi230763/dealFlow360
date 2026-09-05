@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import log_event
 from app.core.deps import get_current_user, get_db
 from app.core.events import publish
+from app.api.fulfillment import ensure_fulfillment_planned
 from app.models.approval_request import ApprovalRequest, ApprovalRequestStatus
 from app.models.customer import Customer, CustomerTier
 from app.models.quotation import Quotation, QuotationStatus
@@ -137,6 +138,8 @@ def act_on_approval(
         )
         if remaining == 0:
             quotation.status = QuotationStatus.APPROVED
+            db.flush()
+            ensure_fulfillment_planned(db, quotation, user)
     elif body.action == "reject":
         req.status = ApprovalRequestStatus.REJECTED
         quotation.status = QuotationStatus.REJECTED
