@@ -1,20 +1,24 @@
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.audit import log_event
 from app.core.deps import get_current_user, get_db
+from app.core.dismissals import dismiss as dismiss_suggestion_for, get_dismissed
 from app.core.events import publish
 from app.engine.ceilings import resolve_ceiling
 from app.engine.pricing import LineInput, QuotationPricing, price_quotation
 from app.engine.risk import RiskResult, compute_risk
 from app.engine.routing import ApprovalRuleData, ApprovalStep, determine_chain, explain
+from app.engine.upsell import PairingCandidate, suggest as suggest_upsells
 from app.models.approval_request import ApprovalRequest, ApprovalRequestStatus
 from app.models.approval_rule import ApprovalRule
 from app.models.catalog import Category, Product, ProductVariant
 from app.models.customer import Customer, CustomerTier
+from app.models.pairing import ProductPairing
 from app.models.pricing_config import CategoryTierCeiling
 from app.models.quotation import Quotation, QuotationLine, QuotationStatus
 from app.models.user import User
@@ -32,6 +36,7 @@ from app.schemas.quotation import (
     QuotationStatusUpdate,
 )
 from app.schemas.risk import ApprovalRequestOut, ApprovalStepOut, LineRiskBreakdownOut, RiskOut
+from app.schemas.upsell import SuggestionOut
 
 router = APIRouter(prefix="/api/quotations", tags=["quotations"])
 
@@ -550,3 +555,73 @@ def recompute_quotation(
     db.refresh(quotation)
     publish({"type": "quotation_recomputed", "quotation_id": str(quotation.id), "status": quotation.status.value})
     return quotation
+
+
+@router.get("/{quotation_id}/suggestions", response_model=list[SuggestionOut])
+def get_suggestions(
+    quotation_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+) -> list[SuggestionOut]:
+    quotation = db.get(Quotation, quotation_id)
+    if quotation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")
+
+    current_product_ids = {ln.product_id for ln in quotation.lines}
+    if not current_product_ids:
+        return []
+
+    baseline_pricing, _customer = _build_pricing(db, quotation.customer_id, quotation.lines)
+
+    pairings = (
+        db.query(ProductPairing).filter(ProductPairing.product_id.in_(current_product_ids)).all()
+    )
+    dismissed = get_dismissed(quotation_id)
+
+    seen: set[uuid.UUID] = set()
+    candidates: list[PairingCandidate] = []
+    for pairing in pairings:
+        sp_id = pairing.suggested_product_id
+        if sp_id in current_product_ids or sp_id in seen or sp_id in dismissed:
+            continue
+        seen.add(sp_id)
+
+        suggested_product = db.get(Product, sp_id)
+        if suggested_product is None or not suggested_product.is_active:
+            continue
+        origin_product = db.get(Product, pairing.product_id)
+
+        hypothetical_lines_in = list(quotation.lines) + [
+            QuotationLineIn(product_id=sp_id, qty=1, discount_pct=Decimal("0"))
+        ]
+        hypo_pricing, _ = _build_pricing(db, quotation.customer_id, hypothetical_lines_in)
+        new_line_pricing = hypo_pricing.lines[-1]
+        margin_delta = hypo_pricing.margin_amount - baseline_pricing.margin_amount
+
+        candidates.append(
+            PairingCandidate(
+                suggested_product_id=sp_id,
+                product_name=suggested_product.name,
+                is_promoted=suggested_product.is_promoted,
+                co_purchase_score=pairing.co_purchase_score,
+                min_margin_pct=pairing.min_margin_pct,
+                suggested_line_margin_pct=new_line_pricing.margin_pct,
+                margin_delta=margin_delta,
+                new_grand_total=hypo_pricing.grand_total,
+                reason=f"Often bought with {origin_product.name if origin_product else 'items on this order'}.",
+            )
+        )
+
+    results = suggest_upsells(candidates, dismissed)
+    return [SuggestionOut(**vars(r)) for r in results]
+
+
+@router.post("/{quotation_id}/suggestions/{product_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+def dismiss_suggestion(
+    quotation_id: uuid.UUID,
+    product_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> None:
+    quotation = db.get(Quotation, quotation_id)
+    if quotation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")
+    dismiss_suggestion_for(quotation_id, product_id)

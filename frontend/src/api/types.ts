@@ -308,6 +308,16 @@ export interface AuditEventOut {
   created_at: string;
 }
 
+export interface Suggestion {
+  product_id: string;
+  product_name: string;
+  is_promoted: boolean;
+  co_purchase_score: string;
+  margin_delta: string;
+  new_grand_total: string;
+  reason: string;
+}
+
 export interface QuotationListItem {
   id: string;
   number: string;

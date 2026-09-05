@@ -19,6 +19,7 @@ import { useToast } from "@/components/Toast";
 import { RiskMeter } from "./RiskMeter";
 import { RiskBreakdownPanel } from "./RiskBreakdownPanel";
 import { QuotationDetailView } from "./QuotationDetailView";
+import { UpsellSuggestions } from "./UpsellSuggestions";
 
 function routingHelperText(pricing: QuotationPreview | null): string {
   if (!pricing) return "";
@@ -147,6 +148,7 @@ export function QuotationBuilderPage() {
       const quotationId = await persistLines();
       toast.push("Draft saved");
       qc.invalidateQueries({ queryKey: ["quotations"] });
+      qc.invalidateQueries({ queryKey: ["suggestions", quotationId] });
       navigate(`/quotations/${quotationId}`);
     } catch (err) {
       toast.push(err instanceof ApiError ? err.detail : "Could not save draft", "risk");
@@ -328,10 +330,11 @@ export function QuotationBuilderPage() {
         </div>
       )}
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-ink-muted">Upsell and Cross-Sell Suggestions</h2>
-        <EmptyState message="Suggestions arrive once a product is on the order (Phase 4)." />
-      </div>
+      <UpsellSuggestions
+        quotationId={isEditing ? id : undefined}
+        excludeProductIds={lines.map((l) => l.product_id)}
+        onAdd={addProduct}
+      />
 
       <dl className="grid grid-cols-4 gap-3 rounded-sm border border-border bg-surface p-4 text-sm">
         <div>

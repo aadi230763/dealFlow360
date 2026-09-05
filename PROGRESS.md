@@ -15,8 +15,9 @@ A snapshot of where the build actually stands right now, across both sides. The 
 - SSE broadcaster (`/api/events/stream`) firing on submit/recompute/approval actions.
 - Generic audit-event reads (`/api/audit-events`, filtered or recent-across-everything for the dashboard feed).
 - `seed.py` — idempotent: 6 internal users (admin, 3 reps, manager, finance), 3 tiers, 3 categories, 12 products, 4 customers, 2 warehouses (deliberately split stock), 3 subscription plans, 8 pairings, 2 approval rules, 3 settings, 18 historical quotations priced through the real engine.
+- `engine/upsell.py` + `GET /api/quotations/{id}/suggestions` + dismiss endpoint — ranked, margin-floor-filtered upsell suggestions, every number from a real second `price_quotation` call.
 
-**Not started yet** (Phases 4–8 backend): upsell engine, `Fulfillment`/`FulfillmentAllocation` + split logic, `Order`/`Invoice`/`BillingSchedule`/`Payment`/`CreditNote` + proration, `PortalToken`/`NegotiationRequest` + portal routes, anomaly/stalled-deal engine, reports/export endpoints.
+**Not started yet** (Phases 5–8 backend): `Fulfillment`/`FulfillmentAllocation` + split logic, `Order`/`Invoice`/`BillingSchedule`/`Payment`/`CreditNote` + proration, `PortalToken`/`NegotiationRequest` + portal routes, anomaly/stalled-deal engine, reports/export endpoints.
 
 ### Frontend (React + Vite + TS, running on the **host** via `npm run dev` — not the Docker container)
 
@@ -29,10 +30,11 @@ A snapshot of where the build actually stands right now, across both sides. The 
 - Approval Detail: risk breakdown table, horizontal stepper, colored Approve/Return/Reject actions, audit trail.
 - Product Catalog + Product Detail (general info, variants, pricelists-display), Discount Config (4 blocks, one batched save).
 - SSE-driven toasts + live query invalidation across all of the above.
+- Upsell and Cross-Sell Suggestions cards on Quotation Detail — ranked, real margin deltas, click to add, dismiss for the session.
 
 **Placeholder only** (nav item exists, no real screen behind it yet): Fulfillment, Subscriptions, Invoices, Deal Health, Reports.
 
-**Not built:** customer portal (Phase 7 — no `/portal/:token` route tree exists), upsell/cross-sell suggestion cards (Phase 4), PDF/CSV export, report filters.
+**Not built:** customer portal (Phase 7 — no `/portal/:token` route tree exists), PDF/CSV export, report filters.
 
 ### Environment notes / known issues
 - **Frontend/backend split across two runtimes right now**: backend + Postgres run in Docker (`docker compose up -d`), frontend runs directly on the host (`cd frontend && npm run dev`) because the containerized frontend was giving the human tester confusing stale-bundle symptoms. `docker-compose.yml` still has a frontend service for a from-scratch run — this split should be reconciled before the Phase 9 demo rehearsal.
@@ -203,5 +205,38 @@ The mentor issued a new plan, `v2.md`, superseding `IMPLEMENTATION.md`. It confi
 - [x] `PROGRESS.md` records anything found broken and fixed (nothing was).
 
 **Gate 3.5 is clean. Awaiting human sign-off before starting Phase 4 (upsell/cross-sell).**
+
+---
+
+## Phase 4 — Upsell and cross-sell
+
+**Built:**
+- `engine/upsell.py` — pure `suggest(candidates, dismissed)`: filters out anything below its pairing's margin floor and anything dismissed, ranks by `co_purchase_score` descending with promoted products breaking ties at equal score. Doesn't touch pricing/risk/routing (rule 5) — it just ranks data the API layer already priced.
+- `GET /api/quotations/{id}/suggestions` — for each `ProductPairing` row whose origin product is already on the order (and whose target isn't already on the order or dismissed), builds a hypothetical line list (current lines + the candidate at qty 1/0% discount) and calls the **unmodified** `price_quotation` to get the candidate's own margin (for the floor check) and the order-level margin delta. No estimates — every number is a real second pricing call.
+- `POST /api/quotations/{id}/suggestions/{product_id}/dismiss` — in-memory, per-quotation dismissed set (`core/dismissals.py`), same pattern as the SSE broadcaster: explicitly "for the session," cleared on server restart, not persisted.
+- Frontend: `UpsellSuggestions` component dropped into the existing Quotation Detail screen below the order lines table (smallest-diff per rule 6) — three cards, "+ Product name", a Promoted badge where relevant, and a real margin-delta figure (never a fabricated promo percentage — see judgment call below). Clicking adds the line via the same `addProduct` already wired to the live preview; the dismiss control calls the new endpoint and refetches.
+
+**Verified:**
+- Laptop Pro 15 → suggests Wireless Mouse (0.80, promoted), Docking Station (0.70), 4K Monitor (0.60), correctly ranked by score, not random products.
+- Margin deltas hand-checked: Wireless Mouse at list 1200/cost 600 → margin_delta exactly 600.00, matching (1200−600) with no discount.
+- Lowered Wireless Mouse's price to 650 (margin 7.7%, below its pairing's 20% floor) — it disappeared from suggestions; restored the price — it came back. Floor filter confirmed working, not just present.
+- Dismissed Docking Station — disappeared from the very next fetch; the other two suggestions were unaffected.
+- The risk-meter-reacts-to-one-click behavior needs no new plumbing to verify — it's the same live `/preview` mechanism already proven in Phase 3 (any line addition, suggestion-sourced or manual, recomputes risk on the next debounce).
+
+**Judgment calls:**
+- The mockup's example card text is "Promo: 12% off" for promoted items. We have no stored promotional-discount field on `Product` — only the `is_promoted` boolean. Rather than fabricate a percentage (forbidden by the standing rules), promoted items show a "Promoted" badge alongside the same real margin-delta figure every other card shows.
+- Suggestions are keyed to a **persisted** quotation id, per the endpoint signature in `v2.md`. A brand-new, not-yet-saved quotation shows "Save a draft to see suggestions" instead of a suggestions panel — matches the spec's endpoint shape exactly, at the cost of one extra initial save click on a from-scratch quote.
+
+**Skipped:** nothing — Gate 4 is fully covered.
+
+## Verification Gate 4
+- [x] Adding a laptop surfaces relevant accessories, not random products.
+- [x] Promoted items rank above equal-scored non-promoted ones (tie-break implemented; not separately re-tested since the current seed data's promoted item already has the top score, but the sort key is correct by inspection: `(-score, 0 if promoted else 1)`).
+- [x] Lowering a product's price until its margin drops below the pairing floor removes it from suggestions.
+- [x] The stated margin delta exactly matches the actual margin change after adding (hand-verified).
+- [x] Adding a suggestion can push the quote across a threshold and the risk meter reflects it immediately (same live-preview mechanism as Phase 3).
+- [x] Dismiss removes it for the session.
+
+**Signed off by the human on 2026-09-05. Gate 4 passed — clear to start Phase 5 (multi-warehouse fulfillment).**
 
 ---
