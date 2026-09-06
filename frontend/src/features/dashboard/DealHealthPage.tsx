@@ -169,6 +169,9 @@ export function DealHealthPage() {
   // rep should be able to do to themselves or another rep -- the backend enforces this too
   // (require_role on both endpoints), this just keeps a rep from seeing a button that 403s.
   const canAct = user?.role === "SALES_MANAGER" || user?.role === "FINANCE" || user?.role === "ADMIN";
+  // Escalate means raising a deal to whoever is above the acting role. Admin has nobody
+  // above them, so the action is meaningless there -- backend also excludes Admin.
+  const canEscalate = user?.role === "SALES_MANAGER" || user?.role === "FINANCE";
 
   const { data: health, isLoading } = useQuery({
     queryKey: ["dashboard-health"],
@@ -288,13 +291,15 @@ export function DealHealthPage() {
                         >
                           Nudge Rep
                         </Button>
-                        <Button
-                          variant="danger"
-                          onClick={() => act(row, "escalate")}
-                          disabled={busyKey === row.key}
-                        >
-                          Escalate
-                        </Button>
+                        {canEscalate && (
+                          <Button
+                            variant="danger"
+                            onClick={() => act(row, "escalate")}
+                            disabled={busyKey === row.key}
+                          >
+                            Escalate
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <span className="block text-right text-xs text-ink-faint">Manager/Finance only</span>

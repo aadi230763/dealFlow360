@@ -3,14 +3,16 @@
 import argparse
 import random
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
+from app.api.billing import _generate_number, create_order_and_initial_invoices
 from app.core.security import hash_password
 from app.engine.ceilings import resolve_ceiling
 from app.engine.pricing import LineInput, price_quotation
 from app.models.approval_rule import ApprovalRule
 from app.models.base import Base, SessionLocal, engine
+from app.models.billing import CreditNote, Invoice, InvoiceStatus, InvoiceType, Order, Payment
 from app.models.catalog import Category, Product
 from app.models.customer import Customer, CustomerTier
 from app.models.fulfillment import Fulfillment, FulfillmentAllocation, FulfillmentStatus
@@ -26,6 +28,7 @@ import app.models.audit  # noqa: F401
 import app.models.approval_request  # noqa: F401
 import app.models.billing  # noqa: F401
 import app.models.portal  # noqa: F401
+import app.models.notification  # noqa: F401
 
 SEED_USERS = [
     ("admin@dealflow360.com", "Ada Admin", Role.ADMIN),
@@ -77,6 +80,31 @@ PRODUCTS = [
     ("SaaS License Standard", "SB-LIC-STD", "Subscriptions", Decimal("1000"), Decimal("3000"), False),
     ("SaaS License Premium", "SB-LIC-PREM", "Subscriptions", Decimal("2000"), Decimal("6000"), True),
     ("Support Plan Basic", "SB-SUP-BASIC", "Subscriptions", Decimal("400"), Decimal("1500"), False),
+    # Additional dummy catalog depth (Hardware)
+    ("Mechanical Keyboard", "HW-KEY-MECH", "Hardware", Decimal("2200"), Decimal("4000"), False),
+    ("Webcam HD", "HW-CAM-HD", "Hardware", Decimal("1200"), Decimal("2200"), False),
+    ("Noise Cancelling Headset", "HW-HDS-NC", "Hardware", Decimal("3800"), Decimal("6500"), True),
+    ("USB-C Hub", "HW-HUB-USBC", "Hardware", Decimal("900"), Decimal("1800"), False),
+    ("Laptop Stand", "HW-STND-LAP", "Hardware", Decimal("700"), Decimal("1400"), False),
+    ("External SSD 1TB", "HW-SSD-1TB", "Hardware", Decimal("4500"), Decimal("7500"), False),
+    ("Conference Room Camera", "HW-CAM-CONF", "Hardware", Decimal("18000"), Decimal("28000"), False),
+    ("Network Switch 24-Port", "HW-SW-24P", "Hardware", Decimal("12000"), Decimal("19000"), False),
+    ("Wireless Access Point", "HW-WAP-01", "Hardware", Decimal("6000"), Decimal("10000"), False),
+    ("Printer LaserJet", "HW-PRN-LSR", "Hardware", Decimal("14000"), Decimal("22000"), False),
+    ("UPS Backup 1500VA", "HW-UPS-1500", "Hardware", Decimal("8000"), Decimal("13000"), False),
+    ("Server Rack 12U", "HW-RACK-12U", "Hardware", Decimal("22000"), Decimal("34000"), False),
+    # Additional dummy catalog depth (Services)
+    ("Data Migration Service", "SV-MIG-DATA", "Services", Decimal("6000"), Decimal("18000"), False),
+    ("Custom Integration Build", "SV-INT-CUST", "Services", Decimal("8000"), Decimal("25000"), False),
+    ("Annual Health Check", "SV-HLTH-ANN", "Services", Decimal("2500"), Decimal("8000"), False),
+    ("Dedicated Account Manager", "SV-AM-DED", "Services", Decimal("5000"), Decimal("15000"), True),
+    ("Security Audit", "SV-SEC-AUD", "Services", Decimal("7000"), Decimal("20000"), False),
+    ("Staff Training Workshop", "SV-TRN-WKS", "Services", Decimal("3500"), Decimal("11000"), False),
+    # Additional dummy catalog depth (Subscriptions)
+    ("SaaS License Enterprise", "SB-LIC-ENT", "Subscriptions", Decimal("3500"), Decimal("9500"), True),
+    ("Support Plan Premium", "SB-SUP-PREM", "Subscriptions", Decimal("900"), Decimal("2800"), False),
+    ("Analytics Add-on", "SB-ADDON-ANLY", "Subscriptions", Decimal("600"), Decimal("2000"), False),
+    ("API Access Plan", "SB-API-PLAN", "Subscriptions", Decimal("500"), Decimal("1800"), False),
 ]
 
 CUSTOMERS = [
@@ -84,6 +112,36 @@ CUSTOMERS = [
     ("Beta Industries", "procurement@betaindustries.example", "Silver"),
     ("Gamma Retail", "purchasing@gammaretail.example", "Bronze"),
     ("Delta Manufacturing", "orders@deltamfg.example", "Gold"),
+    ("Epsilon Logistics", "orders@epsilonlogistics.example", "Silver"),
+    ("Zenith Pharma", "purchasing@zenithpharma.example", "Gold"),
+    ("Orion Textiles", "buyer@oriontextiles.example", "Bronze"),
+    ("Nimbus Cloud Services", "procurement@nimbuscloud.example", "Gold"),
+    ("Cascade Foods", "orders@cascadefoods.example", "Silver"),
+    ("Ironclad Security", "buyer@ironcladsecurity.example", "Bronze"),
+    ("Vertex Motors", "purchasing@vertexmotors.example", "Gold"),
+    ("Bluewave Media", "procurement@bluewavemedia.example", "Silver"),
+    ("Summit Construction", "orders@summitconstruction.example", "Bronze"),
+    ("Halcyon Energy", "buyer@halcyonenergy.example", "Gold"),
+    ("Meridian Health", "purchasing@meridianhealth.example", "Silver"),
+    ("Redwood Realty", "procurement@redwoodrealty.example", "Bronze"),
+    ("Solstice Airlines", "orders@solsticeair.example", "Gold"),
+    ("Anchor Financial", "buyer@anchorfinancial.example", "Silver"),
+    ("Pinecrest Education", "purchasing@pinecresteducation.example", "Bronze"),
+    ("Lumen Telecom", "procurement@lumentelecom.example", "Gold"),
+    ("Coral Reef Hospitality", "orders@coralreefhospitality.example", "Silver"),
+    ("Granite Insurance", "buyer@graniteinsurance.example", "Bronze"),
+    ("Sable Automotive", "purchasing@sableautomotive.example", "Gold"),
+    ("Ember Robotics", "procurement@emberrobotics.example", "Silver"),
+    ("Fjord Shipping", "orders@fjordshipping.example", "Bronze"),
+    ("Skyline Retailers", "buyer@skylineretailers.example", "Gold"),
+    ("Terra Agriculture", "purchasing@terraagriculture.example", "Silver"),
+    ("Marble Legal Group", "procurement@marblelegal.example", "Bronze"),
+    ("Quartz Mining Co", "orders@quartzmining.example", "Gold"),
+    ("Willow Consulting", "buyer@willowconsulting.example", "Silver"),
+    ("Ashgrove Manufacturing", "purchasing@ashgrovemfg.example", "Bronze"),
+    ("Cobalt Defense Systems", "procurement@cobaltdefense.example", "Gold"),
+    ("Driftwood Media House", "orders@driftwoodmedia.example", "Silver"),
+    ("Everstone Capital", "buyer@everstonecapital.example", "Bronze"),
 ]
 
 WAREHOUSES = [
@@ -180,8 +238,8 @@ def _seed_historical_quotations(
     }
 
     now = datetime.now(timezone.utc)
-    total = 18
-    forced_stalled = 4  # guarantees >= 3 quotations past the 10-day threshold, in a non-terminal state
+    total = 150
+    forced_stalled = 15  # guarantees several quotations past the 10-day threshold, in a non-terminal state
 
     # One rep gets one clearly outlying quote against their own otherwise-normal history --
     # this is what the discount-anomaly detector (Phase 8) needs to have something to flag
@@ -285,6 +343,186 @@ def _seed_historical_quotations(
         db.flush()
 
 
+def _seed_billing_demo_data(
+    db,
+    product_by_sku: dict[str, Product],
+    customer_by_email: dict[str, Customer],
+) -> None:
+    """Confirmed orders with real Orders/BillingSchedules/Invoices/Payments, built through
+    the same create_order_and_initial_invoices() the internal 'Confirm Order' button and the
+    portal auto-confirm path use -- so demo subscriptions and invoices are structured exactly
+    like a live one, not faked numbers. Without this, the Subscriptions and Invoices screens
+    are empty on a fresh seed even though the pipeline board has plenty of quotations."""
+    random.seed(43)
+    reps = db.query(User).filter(User.role == Role.SALES_REP).order_by(User.email).all()
+    customers = list(customer_by_email.values())
+    plans = db.query(SubscriptionPlan).order_by(SubscriptionPlan.name).all()
+
+    subscription_skus = [sku for sku, p in product_by_sku.items() if p.is_subscription]
+    one_time_skus = [sku for sku in product_by_sku if sku not in subscription_skus]
+
+    now = datetime.now(timezone.utc)
+    total = 20
+
+    for i in range(total):
+        rep = reps[i % len(reps)]
+        customer = random.choice(customers)
+        plan = plans[i % len(plans)]
+        sub_product = product_by_sku[subscription_skus[i % len(subscription_skus)]]
+        one_time_product = product_by_sku[random.choice(one_time_skus)]
+
+        engine_lines = [
+            LineInput(
+                product_id=sub_product.id,
+                category_id=sub_product.category_id,
+                line_type="RECURRING",
+                qty=random.randint(1, 5),
+                unit_price=sub_product.list_price,
+                unit_cost=sub_product.unit_cost,
+                tax_pct=sub_product.tax_pct,
+                discount_pct=Decimal(random.randint(0, 5)),
+                product_name=sub_product.name,
+            ),
+            LineInput(
+                product_id=one_time_product.id,
+                category_id=one_time_product.category_id,
+                line_type="ONE_TIME",
+                qty=random.randint(1, 3),
+                unit_price=one_time_product.list_price,
+                unit_cost=one_time_product.unit_cost,
+                tax_pct=one_time_product.tax_pct,
+                discount_pct=Decimal(random.randint(0, 5)),
+                product_name=one_time_product.name,
+            ),
+        ]
+        # These are already-confirmed historical orders, not quotations going through
+        # approval, so ceilings are left wide open rather than resolved per tier/category.
+        wide_open = {sub_product.category_id: Decimal("100"), one_time_product.category_id: Decimal("100")}
+        pricing = price_quotation(engine_lines, wide_open)
+
+        status_choice = random.choice(
+            [QuotationStatus.CONFIRMED, QuotationStatus.FULFILLING, QuotationStatus.INVOICED]
+        )
+        created_at = now - timedelta(days=random.randint(30, 200))
+
+        quotation = Quotation(
+            id=uuid.uuid4(),
+            number=f"Q-{db.query(Quotation).count() + 1:04d}",
+            customer_id=customer.id,
+            owner_user_id=rep.id,
+            status=status_choice,
+            currency=customer.currency,
+            subtotal=pricing.subtotal,
+            discount_total=pricing.discount_total,
+            tax_total=pricing.tax_total,
+            grand_total=pricing.grand_total,
+            margin_amount=pricing.margin_amount,
+            margin_pct=pricing.margin_pct,
+            created_at=created_at,
+            updated_at=created_at,
+            last_activity_at=created_at,
+        )
+        db.add(quotation)
+        db.flush()
+
+        for line_in, priced in zip(engine_lines, pricing.lines):
+            db.add(
+                QuotationLine(
+                    id=uuid.uuid4(),
+                    quotation_id=quotation.id,
+                    product_id=line_in.product_id,
+                    variant_id=None,
+                    line_type=LineType.RECURRING if line_in.line_type == "RECURRING" else LineType.ONE_TIME,
+                    qty=line_in.qty,
+                    unit_price=priced.unit_price,
+                    unit_cost=priced.unit_cost,
+                    discount_pct=line_in.discount_pct,
+                    subscription_plan_id=plan.id if line_in.line_type == "RECURRING" else None,
+                    start_date=created_at.date() if line_in.line_type == "RECURRING" else None,
+                    computed={
+                        "gross": str(priced.gross),
+                        "discount_amount": str(priced.discount_amount),
+                        "net": str(priced.net),
+                        "tax_amount": str(priced.tax_amount),
+                        "cost_total": str(priced.cost_total),
+                        "margin_amount": str(priced.margin_amount),
+                        "margin_pct": str(priced.margin_pct),
+                        "ceiling_pct": str(priced.ceiling_pct),
+                        "overage_pct": str(priced.overage_pct),
+                        "weight": str(priced.weight),
+                    },
+                )
+            )
+        db.flush()
+        db.refresh(quotation, attribute_names=["lines"])
+
+        # Reuses the real order-confirmation path: creates the Order, a BillingSchedule for
+        # the recurring line, and its first recurring Invoice -- identical to what happens
+        # when a rep clicks "Confirm Order" on an approved quotation.
+        order = create_order_and_initial_invoices(db, quotation, None)
+
+        # The one-time line has no fulfillment shipment event to hang an invoice off in a
+        # seed script (unlike the live invoice_shipment() path), so it's invoiced directly.
+        one_time_line = next(l for l in quotation.lines if l.line_type == LineType.ONE_TIME)
+        amount = Decimal(one_time_line.computed["net"])
+        tax = Decimal(one_time_line.computed["tax_amount"])
+        invoice = Invoice(
+            id=uuid.uuid4(),
+            order_id=order.id,
+            number=_generate_number(db, Invoice, "INV"),
+            type=InvoiceType.ONE_TIME,
+            amount=amount,
+            tax=tax,
+            status=InvoiceStatus.ISSUED,
+            issue_date=created_at.date(),
+            due_date=created_at.date() + timedelta(days=15),
+            created_at=created_at,
+        )
+        db.add(invoice)
+        db.flush()
+
+        # Spread outcomes across paid/partial/credited/unpaid so the Invoices screen shows
+        # every status, not a wall of "ISSUED".
+        outcome = i % 4
+        if outcome == 0:
+            invoice.status = InvoiceStatus.PAID
+            db.add(
+                Payment(
+                    id=uuid.uuid4(),
+                    invoice_id=invoice.id,
+                    amount=invoice.amount + invoice.tax,
+                    method="BANK_TRANSFER",
+                    reference=f"TXN-{1000 + i}",
+                    received_at=created_at + timedelta(days=5),
+                )
+            )
+        elif outcome == 1:
+            invoice.status = InvoiceStatus.PARTIAL
+            db.add(
+                Payment(
+                    id=uuid.uuid4(),
+                    invoice_id=invoice.id,
+                    amount=(invoice.amount + invoice.tax) / 2,
+                    method="CARD",
+                    reference=f"TXN-{2000 + i}",
+                    received_at=created_at + timedelta(days=3),
+                )
+            )
+        elif outcome == 2:
+            invoice.status = InvoiceStatus.CREDITED
+            db.add(
+                CreditNote(
+                    id=uuid.uuid4(),
+                    invoice_id=invoice.id,
+                    amount=invoice.amount,
+                    reason="Customer-reported issue, partial credit",
+                    created_at=created_at + timedelta(days=10),
+                )
+            )
+        # outcome == 3: left ISSUED / unpaid
+        db.flush()
+
+
 def _seed_delivery_slippage_demo(db) -> None:
     """Backdates 2 fulfillments with an open backorder past the promise window, so the
     Delivery Slippage panel (Phase 8) has something to show without waiting for real time
@@ -381,7 +619,10 @@ def seed() -> None:
         db.flush()
 
         # Products
-        subscription_skus = {"SB-LIC-STD", "SB-LIC-PREM", "SB-SUP-BASIC"}
+        # Any product in the Subscriptions category is subscription-billed -- derived from
+        # the category rather than a hardcoded SKU list, so new SKUs added to PRODUCTS don't
+        # need a second place updated to be picked up correctly.
+        subscription_skus = {sku for _, sku, category_name, *_ in PRODUCTS if category_name == "Subscriptions"}
         product_by_sku: dict[str, Product] = {}
         for name, sku, category_name, unit_cost, list_price, is_promoted in PRODUCTS:
             product = db.query(Product).filter(Product.sku == sku).first()
@@ -550,6 +791,13 @@ def seed() -> None:
         # Historical quotations: only seed once, so re-running never inflates the pipeline.
         if db.query(Quotation).count() == 0:
             _seed_historical_quotations(db, product_by_sku, category_by_name, tier_by_name, customer_by_email)
+            db.flush()
+
+        # Confirmed orders with subscriptions/invoices/payments -- separate guard (on Order,
+        # not Quotation) so it still backfills on a DB that already had quotations seeded
+        # before this demo data existed.
+        if db.query(Order).count() == 0:
+            _seed_billing_demo_data(db, product_by_sku, customer_by_email)
             db.flush()
 
         # Independent of the quotation guard above, so it still backfills on a DB that already

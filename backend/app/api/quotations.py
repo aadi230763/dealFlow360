@@ -702,7 +702,9 @@ def nudge_quotation(
 def escalate_quotation(
     quotation_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role(Role.SALES_MANAGER, Role.FINANCE, Role.ADMIN)),
+    # Admin excluded deliberately: escalation means raising a deal to whoever is above the
+    # acting role, and nobody is above Admin, so the action is meaningless for that role.
+    user: User = Depends(require_role(Role.SALES_MANAGER, Role.FINANCE)),
 ) -> NudgeActionOut:
     return _nudge_or_escalate(quotation_id, "escalate", db, user)
 

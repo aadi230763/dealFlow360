@@ -66,6 +66,7 @@ export function QuotationListPage() {
   const [ownerFilter, setOwnerFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  const [search, setSearch] = useState<string>("");
 
   const owners = useMemo(() => {
     const map = new Map<string, string>();
@@ -73,25 +74,36 @@ export function QuotationListPage() {
     return Array.from(map, ([id, name]) => ({ id, name }));
   }, [quotations]);
 
+  const searched = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return quotations ?? [];
+    return (quotations ?? []).filter(
+      (q) =>
+        q.number.toLowerCase().includes(term) ||
+        q.customer_name.toLowerCase().includes(term) ||
+        q.owner_name.toLowerCase().includes(term),
+    );
+  }, [quotations, search]);
+
   const filtered = useMemo(() => {
-    return (quotations ?? []).filter((q) => {
+    return searched.filter((q) => {
       if (statusFilter && q.status !== statusFilter) return false;
       if (ownerFilter && q.owner_user_id !== ownerFilter) return false;
       if (dateFrom && new Date(q.created_at) < new Date(dateFrom)) return false;
       if (dateTo && new Date(q.created_at) > new Date(dateTo + "T23:59:59")) return false;
       return true;
     });
-  }, [quotations, statusFilter, ownerFilter, dateFrom, dateTo]);
+  }, [searched, statusFilter, ownerFilter, dateFrom, dateTo]);
 
   const columns = useMemo(() => {
     const map = new Map<QuotationStatus, QuotationListItem[]>();
     for (const s of KANBAN_COLUMNS) map.set(s, []);
-    for (const q of quotations ?? []) {
+    for (const q of searched) {
       const col = kanbanColumnFor(q.status);
       if (col) map.get(col)?.push(q);
     }
     return map;
-  }, [quotations]);
+  }, [searched]);
 
   const onDragStart = (e: DragEvent<HTMLDivElement>, id: string) => {
     e.dataTransfer.setData("text/quotation-id", id);
@@ -118,6 +130,16 @@ export function QuotationListPage() {
           </>
         }
       />
+
+      {!isLoading && !isError && (quotations ?? []).length > 0 && (
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by quotation number, customer, or owner…"
+          className="w-full max-w-md rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary-bg"
+        />
+      )}
 
       {isLoading ? (
         <SkeletonText lines={5} />
