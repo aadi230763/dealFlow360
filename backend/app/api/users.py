@@ -12,9 +12,10 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 def list_users(
     role: Role | None = Query(None),
     db: Session = Depends(get_db),
-    # Scoped to ADMIN/SALES_MANAGER -- this exists so account ownership can be assigned to
-    # a rep, not as a general internal directory.
-    _: User = Depends(require_role(Role.ADMIN, Role.SALES_MANAGER)),
+    # Scoped to ADMIN/SALES_MANAGER/FINANCE -- this exists so account ownership can be
+    # assigned to a rep, and so Finance can check whether they're the sole holder of
+    # their role for the self-approval exception, not as a general internal directory.
+    _: User = Depends(require_role(Role.ADMIN, Role.SALES_MANAGER, Role.FINANCE)),
 ) -> list[User]:
     q = db.query(User)
     if role is not None:

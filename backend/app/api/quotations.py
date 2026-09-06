@@ -22,6 +22,7 @@ from app.models.approval_request import ApprovalRequest, ApprovalRequestStatus
 from app.models.approval_rule import ApprovalRule
 from app.models.catalog import Category, Product, ProductVariant
 from app.models.customer import Customer, CustomerTier
+from app.models.fulfillment import Fulfillment, FulfillmentStatus
 from app.models.pairing import ProductPairing
 from app.models.pricing_config import CategoryTierCeiling
 from app.models.quotation import Quotation, QuotationLine, QuotationStatus
@@ -190,6 +191,12 @@ def _apply_lines(db: Session, quotation: Quotation, lines_in: list, pricing: Quo
     quotation.margin_amount = pricing.margin_amount
     quotation.margin_pct = pricing.margin_pct
     quotation.last_activity_at = datetime.now(timezone.utc)
+    # New lines were added via db.add(...), not quotation.lines.append(...), so the
+    # in-memory relationship (emptied by .clear() above) doesn't pick them up on its own --
+    # any caller reading quotation.lines right after this (e.g. ensure_fulfillment_planned)
+    # would otherwise see a stale empty list and silently no-op.
+    db.flush()
+    db.refresh(quotation, attribute_names=["lines"])
 
 
 @router.post("/preview", response_model=QuotationPreviewOut)
@@ -519,6 +526,21 @@ def recompute_quotation(
         )
         for ln in quotation.lines
     ]
+    # `_apply_lines` deletes and recreates QuotationLine rows (new ids). If this quotation
+    # already has a Fulfillment (auto-planned when it first reached APPROVED), the old
+    # lines are still referenced by fulfillment_allocations and the delete hits a hard FK
+    # violation. A still-PLANNED plan hasn't reserved any stock, so it's safe to drop --
+    # ensure_fulfillment_planned below regenerates a fresh one against the final lines if
+    # this recompute lands back on APPROVED. (Same fix already applied to the portal's
+    # counter-discount-accept path, which hits the identical root cause.)
+    stale_plan = (
+        db.query(Fulfillment)
+        .filter(Fulfillment.quotation_id == quotation.id, Fulfillment.status == FulfillmentStatus.PLANNED)
+        .first()
+    )
+    if stale_plan is not None:
+        db.delete(stale_plan)
+        db.flush()
     _apply_lines(db, quotation, lines_in, pricing)
 
     quotation.blended_score = risk.blended

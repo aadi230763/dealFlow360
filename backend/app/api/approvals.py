@@ -97,7 +97,14 @@ def act_on_approval(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")
 
     if quotation.owner_user_id == user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot act on your own quotation")
+        # Self-approval is blocked in general, but if the acting user is currently the
+        # *only* person holding the role this step requires, blocking them would leave
+        # the quotation permanently stuck with no possible approver. Allow it in that
+        # narrow case; the moment a second user is given this role, the block re-engages
+        # automatically since this count will exceed 1.
+        role_holder_count = db.query(User).filter(User.role == user.role).count()
+        if role_holder_count > 1:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot act on your own quotation")
     if user.role.value != req.required_role:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role for this approval step")
     if req.status != ApprovalRequestStatus.PENDING:

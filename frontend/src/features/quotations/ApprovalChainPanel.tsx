@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/api/client";
-import type { ApprovalRequestOut } from "@/api/types";
+import type { ApprovalRequestOut, UserOut } from "@/api/types";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -55,17 +55,31 @@ export function ApprovalChainPanel({
     },
   });
 
+  const earliestPendingSeq = (steps ?? [])
+    .filter((s) => s.status === "PENDING")
+    .reduce((min, s) => Math.min(min, s.sequence), Infinity);
+
+  const currentStep = (steps ?? []).find((s) => s.status === "PENDING" && s.sequence === earliestPendingSeq);
+
+  // Self-approval is normally blocked, but if the current user is the *only* person
+  // holding the role this step requires, the quotation would otherwise be permanently
+  // stuck. Mirrors the backend exception in api/approvals.py::act_on_approval, which
+  // re-blocks automatically once a second holder of that role exists.
+  const { data: roleHolders } = useQuery({
+    queryKey: ["users-by-role", currentStep?.required_role],
+    queryFn: () => api.get<UserOut[]>(`/users?role=${currentStep!.required_role}`),
+    enabled: Boolean(currentStep && user?.id === ownerUserId && user?.role === currentStep.required_role),
+  });
+  const isSoleRoleHolder = Boolean(roleHolders && roleHolders.length <= 1);
+
   if (!steps || steps.length === 0) {
     return <p className="text-sm text-ink-muted">No approval routing was required for this quotation.</p>;
   }
 
-  const earliestPendingSeq = steps
-    .filter((s) => s.status === "PENDING")
-    .reduce((min, s) => Math.min(min, s.sequence), Infinity);
-
-  const currentStep = steps.find((s) => s.status === "PENDING" && s.sequence === earliestPendingSeq);
   const canAct = Boolean(
-    currentStep && user?.role === currentStep.required_role && user?.id !== ownerUserId,
+    currentStep &&
+      user?.role === currentStep.required_role &&
+      (user?.id !== ownerUserId || isSoleRoleHolder),
   );
 
   const stepperSteps = [

@@ -1,10 +1,19 @@
-import type { ReactNode } from "react";
+import { Children, isValidElement, type ReactNode } from "react";
 
 export function Table({ children }: { children: ReactNode }) {
+  // Callers pass <TableHead> as a normal child alongside the body rows (the pattern used
+  // everywhere in this codebase), but a <thead> is only valid HTML as a sibling of
+  // <tbody>, never nested inside it. Pull it out here so every call site can keep writing
+  // <Table><TableHead>...</TableHead>{rows}</Table> unchanged.
+  const childArray = Children.toArray(children);
+  const head = childArray.find((child) => isValidElement(child) && child.type === TableHead);
+  const body = childArray.filter((child) => !(isValidElement(child) && child.type === TableHead));
+
   return (
     <table className="w-full border-collapse text-sm">
+      {head}
       <tbody className="[&>tr]:border-b [&>tr]:border-border [&>tr]:transition-colors [&>tr]:duration-150 [&>tr:hover]:bg-canvas [&>tr:last-child]:border-0">
-        {children}
+        {body}
       </tbody>
     </table>
   );
